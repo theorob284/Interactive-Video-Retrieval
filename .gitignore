@@ -1,0 +1,23 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Django
+*.sqlite3
+*.sqlite3-journal
+*.log
+staticfiles/
+media/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# React / Node.js
+node_modules/
+dist/
+coverage/
