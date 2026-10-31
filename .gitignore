@@ -2,8 +2,11 @@
 .venv/
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.coverage
 
 # Django
 *.sqlite3
@@ -21,3 +24,12 @@ media/
 node_modules/
 dist/
 coverage/
+*.tsbuildinfo
+
+# Dataset and generated indexes
+data/
+indexes/
+
+# OS files
+.DS_Store
+Thumbs.db
