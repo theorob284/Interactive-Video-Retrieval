@@ -4,81 +4,67 @@ from pathlib import Path
 from text_search import TextSearch
 
 
-def load_shots(msb_directory):
-    """
-    Load shot IDs and timestamps from the MSB files.
-    """
+def load(msb_directory):
     shots = []
 
     msb_directory = Path(msb_directory)
 
     for file_path in sorted(msb_directory.glob("*.tsv")):
-        video_id = file_path.stem
+        videoID = file_path.stem
 
         with open(file_path, "r", encoding="utf-8") as file:
             reader = csv.DictReader(file, delimiter="\t")
 
             for shot_number, row in enumerate(reader, start=1):
                 shots.append({
-                    "shotID": f"shot{video_id}_{shot_number}",
+                    "shotID": f"shot{videoID}_{shot_number}",
                     "startTime": float(row["starttime"]),
                     "endTime": float(row["endtime"]),
                 })
 
     return shots
 
-def expand_video_results(video_results, shots):
-    """
-    Convert video-level results into shot-level results.
-    Each shot inherits its parent video's BM25 score.
-    """
-    shots_by_video = {}
+def expandVidResults(vidResults, shots):
+    shotsByVideo = {}
 
     for shot in shots:
-        video_id = get_video_id(shot["shotID"])
-        shots_by_video.setdefault(video_id, []).append(shot)
+        videoID = getVideoID(shot["shotID"])
+        shotsByVideo.setdefault(videoID, []).append(shot)
 
-    expanded_results = []
+    expandedResults = []
 
-    for video_result in video_results:
-        video_id = video_result["video_id"]
+    for video_result in vidResults:
+        videoID = video_result["videoID"]
         score = video_result["score"]
 
-        for shot in shots_by_video.get(video_id, []):
-            expanded_results.append({
+        for shot in shotsByVideo.get(videoID, []):
+            expandedResults.append({
                 **shot,
                 "score": score
             })
 
-    return expanded_results
+    return expandedResults
 
-def get_video_id(shot_id):
-    """
-    Extract the video ID from a shot ID.
-
-    Example: shot00031_1 -> 00031
-    """
+def getVideoID(shot_id):
     return shot_id[4:].split("_")[0]
 
 
-def precision_at_k(results, relevant_shots, k=10):
-    """Calculate the proportion of the top K results that are relevant."""
-    top_results = results[:k]
+def precision_at_k(results, relShots, k=10):
+    top = results[:k]
 
-    if not top_results:
+    if not top:
         return 0.0
 
-    relevant_count = sum(
-        1 for result in top_results
-        if result["shotID"] in relevant_shots
+    relevantNo = sum(
+        1 for result in top
+        if result["shotID"] in relShots
     )
 
-    return relevant_count / len(top_results)
+    return relevantNo / len(top)
 
 
-def recall_at_k(results, relevant_shots, k=10):
-    """Calculate the proportion of known relevant shots retrieved in top K."""
-    if not relevant_shots:
+def kRecall(results, relShots, k=10):
+    if not relShots:
         return 0.0
 
     top_ids = {
@@ -86,69 +72,58 @@ def recall_at_k(results, relevant_shots, k=10):
         for result in results[:k]
     }
 
-    found = len(top_ids.intersection(relevant_shots))
+    found = len(top_ids.intersection(relShots))
 
-    return found / len(relevant_shots)
+    return found / len(relShots)
 
 
 def video_diversity_at_k(results, k=10):
-    """Calculate the proportion of different videos in the top K results."""
-    top_results = results[:k]
+    top = results[:k]
 
-    if not top_results:
+    if not top:
         return 0.0
 
-    video_ids = {
-        get_video_id(result["shotID"])
-        for result in top_results
+    VideoIDs = {
+        getVideoID(result["shotID"])
+        for result in top
     }
 
-    return len(video_ids) / len(top_results)
+    return len(VideoIDs) / len(top)
 
-def remove_duplicates(results):
-    """
-    Remove repeated shot IDs while preserving ranking order.
-    """
+def removeDupes(results):
     seen = set()
-    unique_results = []
+    uniqueResults = []
 
     for result in results:
         shot_id = result["shotID"]
 
         if shot_id not in seen:
             seen.add(shot_id)
-            unique_results.append(result)
+            uniqueResults.append(result)
 
-    return unique_results
+    return uniqueResults
 
-def diversify_results(results, max_per_video=2):
-    """
-    Limit the number of shots returned from each video.
-    """
+def diversify(results, max_per_video=2):
     video_counts = {}
     diversified = []
 
     for result in results:
-        video_id = get_video_id(result["shotID"])
+        videoID = getVideoID(result["shotID"])
 
-        if video_counts.get(video_id, 0) < max_per_video:
+        if video_counts.get(videoID, 0) < max_per_video:
             diversified.append(result)
-            video_counts[video_id] = video_counts.get(video_id, 0) + 1
+            video_counts[videoID] = video_counts.get(videoID, 0) + 1
 
     return diversified
 
-def evaluate_avs(results, relevant_shots, k=10):
-    """Print AVS evaluation metrics."""
+def evaluate(results, relShots, k=10):
+    results = removeDupes(results)
+    results = diversify(results, max_per_video=2)
 
-    results = remove_duplicates(results)
-    results = diversify_results(results, max_per_video=2)
-
-    precision = precision_at_k(results, relevant_shots, k)
-    recall = recall_at_k(results, relevant_shots, k)
+    precision = precision_at_k(results, relShots, k)
+    recall = kRecall(results, relShots, k)
     diversity = video_diversity_at_k(results, k)
 
-    print("\nAVS EVALUATION")
-    print("--------------------------")
     print(f"Precision@{k}: {precision:.2%}")
     print(f"Recall@{k}: {recall:.2%}")
     print(f"Video diversity@{k}: {diversity:.2%}")
@@ -172,14 +147,14 @@ if __name__ == "__main__":
 
     query = "music recording studio"
 
-    video_results = text_search.search(query, top_k=20)
+    vidResults = text_search.search(query, top_k=20)
 
-    shots = load_shots(msb_directory)
+    shots = load(msb_directory)
 
-    avs_results = expand_video_results(video_results, shots)
+    Results = expandVidResults(vidResults, shots)
 
-    avs_results = remove_duplicates(avs_results)
-    avs_results = diversify_results(avs_results, max_per_video=2)
+    Results = removeDupes(Results)
+    Results = diversify(Results, max_per_video=2)
 
-    for result in avs_results[:10]:
+    for result in Results[:10]:
         print(result)
