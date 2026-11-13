@@ -1,0 +1,12 @@
+#root {
+    width: 70%;
+    max-width: 1700px;
+    margin: 0 auto;
+    min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+    #root {
+        width: 100%;
+    }
+}
