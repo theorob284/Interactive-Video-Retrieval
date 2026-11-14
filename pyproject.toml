@@ -13,5 +13,6 @@ dependencies = [
     "opencv-python-headless>=5.0.0.93",
     "pandas>=3.1.0",
     "pillow>=13.0.0",
+    "python-dotenv>=1.2.4",
     "rank-bm25>=0.2.2",
 ]

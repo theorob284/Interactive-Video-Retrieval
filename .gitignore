@@ -45,3 +45,8 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+
+# Local environment variables and credentials
+.env
+.env.*
+!.env.example
