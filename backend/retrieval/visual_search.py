@@ -264,8 +264,8 @@ def search(
     frameNo: int = 12,
     matchThreshold: int = 10,
     imagePath: str = None,
-    binSeconds: float = 4.0,                        # [NEW]
-    candidatesPerFrame: int = 50                    # [NEW]
+    binSeconds: float = 4.0,
+    candidatesPerFrame: int = 50
 ):
     queryPath = videoPath or imagePath
     if queryPath is None:
