@@ -16,6 +16,7 @@ from video_retrieval.dres_client import build_submission, submit_to_dres
 
 from retrieval.text_search import TextSearch
 from retrieval.visual_search import search as visual_search
+from retrieval.avs_search import expandVidResults, removeDupes, diversify
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 VISUAL_INDEX = PROJECT_ROOT / "indexes" / "phashIndex.json"
@@ -298,3 +299,45 @@ def submit_shot(request):
         "dres_status": status,
         "response": dres_response,
     })
+
+
+@require_GET
+def avs_search(request):
+    query = request.GET.get("q", "").strip()
+
+    if not query:
+        return JsonResponse({"results": []})
+
+    # Reuse existing BM25
+    engine, _ = get_search_engine()
+    vidResults = engine.search(query, top_k=20)
+
+    video_ids = [result["video_id"] for result in vidResults]
+
+    # Retrieve shot boundaries from Django instead of TSV files
+    shots = [
+        {
+            "shotID": shot.shot_id,
+            "startTime": shot.start_ms / 1000,
+            "endTime": shot.end_ms / 1000,
+        } for shot in Shot.objects.filter(video_id__in=video_ids).order_by("video_id", "shot_number")
+    ]
+
+    results = expandVidResults(vidResults, shots)
+    results = removeDupes(results)
+    results = diversify(results, max_per_video=2)
+
+    # Convert results into the format React already uses
+    formatted = [
+        {
+            "shot_id": result["shotID"],
+            "video_id": result["shotID"][4:].split("_")[0],
+            "start_ms": round(result["startTime"] * 1000),
+            "end_ms": round(result["endTime"] * 1000),
+            "score": result["score"],
+            "thumbnail_url": f'/api/shots/{result["shotID"]}/thumbnail/',
+        }
+        for result in results[:40]
+    ]
+
+    return JsonResponse({"results": formatted})

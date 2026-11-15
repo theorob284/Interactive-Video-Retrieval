@@ -9,4 +9,5 @@ urlpatterns = [
     path("shots/<str:shot_id>/thumbnail/", views.shot_thumbnail, name="shot_thumbnail"),
     path("videos/<str:video_id>/file/", views.video_file, name="video_file"),
     path("dres/submit/", views.submit_shot, name="submit_shot"),
+    path("search/avs/", views.avs_search, name="avs_search"),
 ]

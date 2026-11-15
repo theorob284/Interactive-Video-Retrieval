@@ -1,29 +1,19 @@
+
 from pathlib import Path
-import cv2
+from visual_search import search
 
-from visual_search import buildIndex, search
+ROOT = Path(__file__).resolve().parents[2]
 
-ROOT = Path(__file__).resolve().parents[1]
+indexPath = ROOT / "indexes" / "phashIndex.json"
 
-thumbnailDirectory = (
-    ROOT.parent / "data" / "assignment2_data" / "thumbnails"
-)
+queryVideo = (ROOT / "data" / "assignment2_data" / "videos_480p" / "00031.mp4")
 
-indexPath = ROOT.parent / "indexes" / "phashIndex.json"
+if not indexPath.is_file():
+    raise FileNotFoundError("Visual search index not found")
 
-queryVideo = (
-    ROOT.parent / "data" / "assignment2_data"
-    / "videos_480p" / "00031.mp4"
-)
+results = search(videoPath=str(queryVideo), topK=50, indexPath=str(indexPath), frameNo=12)
 
-buildIndex(str(thumbnailDirectory), str(indexPath))
-
-results = search(
-    videoPath=str(queryVideo),
-    topK=50,
-    indexPath=str(indexPath),
-    frameNo=12
-)
+print("Visual Search Results")
 
 for result in results[:10]:
     print(result)
