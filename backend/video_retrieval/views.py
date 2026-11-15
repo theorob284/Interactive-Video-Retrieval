@@ -89,7 +89,6 @@ def visual_search_view(request):
     if not VISUAL_INDEX.is_file():
         return JsonResponse({"error": "Visual search index has not been created"}, status=503)
 
-    # Save the uploaded file temporarily so OpenCV/Pillow can read it.
     with tempfile.TemporaryDirectory() as temp_dir:
         query_path = Path(temp_dir) / f"query{suffix}"
 
@@ -97,29 +96,39 @@ def visual_search_view(request):
             for chunk in uploaded_file.chunks():
                 destination.write(chunk)
 
-        results = visual_search(imagePath=str(query_path), indexPath=str(VISUAL_INDEX), topK=20)
-
-    # Attach official shot information from Django.
-    shot_ids = [result["shotID"] for result in results]
-
-    shots = Shot.objects.filter(shot_id__in=shot_ids).select_related("video")
-
-    shot_lookup = {shot.shot_id: shot for shot in shots}
+        try:
+            results = visual_search(imagePath=str(query_path), indexPath=str(VISUAL_INDEX), topK=20)
+        except ValueError as error:
+            return JsonResponse({"error": str(error)}, status=400)
 
     enriched_results = []
 
     for result in results:
-        shot = shot_lookup.get(result["shotID"])
+
+        if "shotID" in result:
+            # Image search: result already identifies a shot.
+            shot = Shot.objects.filter(shot_id=result["shotID"]).first()
+
+        else:
+            # Video search: locate an official shot overlapping the estimated matching segment.
+            video_id = result["videoID"]
+            start_ms = round(result["start"] * 1000)
+            end_ms = round(result["end"] * 1000)
+
+            candidates = Shot.objects.filter(video_id=video_id, start_ms__lt=end_ms, end_ms__gt=start_ms)
+
+            shot = max(candidates, key=lambda s: min(s.end_ms, end_ms) - max(s.start_ms, start_ms), default=None)
 
         if shot is None:
             continue
 
         enriched_results.append({
             **result,
+            "shotID": shot.shot_id,
             "video_id": shot.video_id,
             "start_ms": shot.start_ms,
             "end_ms": shot.end_ms,
-            "thumbnail_url": (f"/api/shots/{shot.shot_id}/thumbnail/"),
+            "thumbnail_url": f"/api/shots/{shot.shot_id}/thumbnail/",
         })
 
     return JsonResponse({"results": enriched_results})
