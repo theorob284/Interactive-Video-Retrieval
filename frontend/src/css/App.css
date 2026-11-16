@@ -1,12 +1,59 @@
 #root {
-    width: 70%;
-    max-width: 1700px;
+    width: 100%;
+    max-width: 2000px;
     margin: 0 auto;
     min-height: 100vh;
+}
+
+/* Navbar */
+.navbar {
+  background-color: #15191e !important;
+  border-bottom: 1px solid #343a40;
 }
 
 @media (max-width: 768px) {
     #root {
         width: 100%;
     }
+}
+
+/* Main application */
+.card {
+    background-color: #25292d;
+    border: 1px solid #3b4147;
+    color: #f1f3f5;
+}
+
+/* Card footers containing thumbnails */
+.card-footer {
+    background-color: #25292d;
+    border-color: #3b4147;
+}
+
+/* Search input fields */
+.form-control {
+    background-color: #2d3238;
+    border-color: #495057;
+    color: #f8f9fa;
+}
+
+.form-control:focus {
+    background-color: #30363d;
+    color: #ffffff;
+    border-color: #0d6efd;
+}
+
+/* Text readability */
+.text-muted {
+    color: #adb5bd !important;
+}
+
+.search-form .form-control,
+.search-form .btn {
+    height: 42px;
+}
+
+.shot-browser-section,
+.video-player-section {
+    scroll-margin-top: 70px;
 }

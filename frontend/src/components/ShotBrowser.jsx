@@ -52,7 +52,7 @@ export default function ShotBrowser({ videoId, onClose, onSelectShot }) {
         <section className="mt-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
             <h3 className="mb-0">Shots: {title || videoId}</h3>
-            <Button variant="outline-secondary" onClick={onClose}> Close</Button>
+            <Button variant="light" onClick={onClose}> Close</Button>
         </div>
 
         {loading && <Spinner animation="border" />}
@@ -60,7 +60,7 @@ export default function ShotBrowser({ videoId, onClose, onSelectShot }) {
         {error && <Alert variant="danger">{error}</Alert>}
 
         {!loading && !error && (
-            <>
+            <div className="mt-4">
                 <p>{shots.length} shots</p>
 
                 <Row xs={1} sm={2} md={3} lg={4} className="g-3">
@@ -73,7 +73,7 @@ export default function ShotBrowser({ videoId, onClose, onSelectShot }) {
                     </Col>
                     ))}
                 </Row>
-            </>
+            </div>
         )}
         </section>
     );

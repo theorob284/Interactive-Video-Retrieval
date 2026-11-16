@@ -76,7 +76,7 @@ export default function DresSubmission({ shot }) {
             <p className="mb-3">Selected shot: <strong>{shot.shot_id}</strong></p>
 
             <div className="d-flex gap-2 flex-wrap">
-                <Button variant="outline-primary" disabled={loading} onClick={() => sendRequest(false)}> Preview Submission</Button>
+                <Button variant="primary" disabled={loading} onClick={() => sendRequest(false)}> Preview Submission</Button>
                 <Button variant="success" disabled={loading || !LIVE_ENABLED} onClick={() => sendRequest(true)}> Submit to DRES</Button>
             </div>
 
@@ -85,7 +85,7 @@ export default function DresSubmission({ shot }) {
             {error && (<Alert variant="danger" className="mt-3">{error}</Alert>)}
 
             {preview && (
-                <Alert variant="info" className="mt-3">
+                <Alert variant="info" className="mt-3" dismissible onClose={() => setPreview(null)}>
                     <strong>Submission preview generated.</strong>
                     <p className="mb-2">Nothing has been sent to DRES.</p>
                     <pre className="mb-0" style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(preview, null, 2)}</pre>

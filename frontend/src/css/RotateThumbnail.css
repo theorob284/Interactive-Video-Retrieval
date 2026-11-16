@@ -1,0 +1,33 @@
+.thumbnail-rotate {
+  position: relative;
+  width: 100%;
+  height: 320px;
+  overflow: hidden;
+  background-color: #f1f1f1;
+}
+
+.thumbnail-slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.thumbnail-slide.active {
+    opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .thumbnail-carousel {
+    height: 200px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumbnail-slide {
+    transition: none;
+  }
+}

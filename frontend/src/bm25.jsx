@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import VideoCard from "./components/VideoCard";
 import ShotBrowser from "./components/ShotBrowser";
 import VideoPlayer from "./components/VideoPlayer";
@@ -10,6 +10,26 @@ function BM25() {
     const [error, setError] = useState('')
     const [selectedVideoId, setSelectedVideoId] = useState(null);
     const [selectedShot, setSelectedShot] = useState(null);
+    const shotBrowserRef = useRef(null);
+    const videoPlayerRef = useRef(null);
+
+    useEffect(() => {
+        if (selectedVideoId && shotBrowserRef.current) {
+            shotBrowserRef.current.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+        }
+    }, [selectedVideoId]);
+
+    useEffect(() => {
+        if (selectedShot && videoPlayerRef.current) {
+            videoPlayerRef.current.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+            });
+        }
+    }, [selectedShot]);
 
     async function handleSearch(event) {
         event.preventDefault()
@@ -39,29 +59,39 @@ function BM25() {
     }
 
     return (
-        <div className="container">
-            <h1>Interactive Video Retrieval</h1>
+        <div className="container mt-3">
+            <h1>Text Search (KIS-T) - Video Retrieval</h1>
             <p>Search the V3C video collection using BM25.</p>
 
-            <form onSubmit={handleSearch}>
-                <input type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Describe the video you're looking for..."/>
+            <form className="d-flex gap-2 search-form" onSubmit={handleSearch}>
+                <input className="form-control mb-2" type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Describe the video you're looking for..."/>
 
-                <button type="submit" disabled={loading}>
-                {loading ? 'Searching...' : 'Search'}
+                <button className="btn btn-primary" type="submit" disabled={loading}>
+                    {loading ? 'Searching...' : 'Search'}
                 </button>
             </form>
 
             {error && <p>{error}</p>}
 
             {selectedVideoId && (
-                <>
-                    {selectedShot && (<VideoPlayer videoId={selectedVideoId} shot={selectedShot}/>)}
+                <div ref={shotBrowserRef} className="mt-4 shot-browser-section">
+
+                    {selectedShot && (
+                        <div ref={videoPlayerRef} className="video-player-section">
+                            <VideoPlayer videoId={selectedVideoId} shot={selectedShot}/>
+                        </div>
+                    )}
                     <ShotBrowser videoId={selectedVideoId} onClose={() => {setSelectedVideoId(null); setSelectedShot(null);}} onSelectShot={setSelectedShot}/>
-                </>
+
+                </div>
             )}
 
-            <div className="results">
-                {results.map((video) => (<VideoCard key={video.video_id} video={video} onSelect={(videoId) => {setSelectedVideoId(videoId); setSelectedShot(null)}}/>))}
+            <div className="row g-3 mt-2 mb-2">
+                {results.map((video) => (
+                    <div className="col-12 col-md-6 col-lg-3" key={video.video_id}>
+                        <VideoCard video={video} onSelect={(videoId) => {setSelectedVideoId(videoId); setSelectedShot(null);}}/>
+                    </div>
+                ))}
             </div>
 
         </div>

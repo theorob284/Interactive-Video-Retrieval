@@ -51,6 +51,10 @@ def text_search(request):
     videos = Video.objects.filter(video_id__in=video_ids)
     video_lookup = {video.video_id: video for video in videos}
 
+    thumbnail_lookup = {
+        video.video_id: (f"/api/shots/shot{video.video_id}_{max(1, (video.shot_count + 1) // 2)}/thumbnail/") for video in videos
+    }
+
     results = []
 
     for match in matches:
@@ -64,6 +68,7 @@ def text_search(request):
             "title": video.title,
             "score": match["score"],
             "shot_count": video.shot_count,
+            "thumbnail_url": thumbnail_lookup.get(video.video_id)
         })
 
     return JsonResponse({"results": results})
