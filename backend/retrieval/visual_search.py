@@ -34,20 +34,18 @@ def loadShotTimes(msbDirectory):
                 )
     return times
 
-_POPCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.uint8)   # [NEW]
- 
- 
+_POPCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.uint8)
+
+
 def hammingRow(queryHash, dataHashes):
-    # [NEW] Hamming distance from one query hash (int) to every indexed hash (uint64 array).
     x = dataHashes ^ np.uint64(queryHash)
- 
-    if hasattr(np, "bitwise_count"):                # NumPy >= 2.0
+
+    if hasattr(np, "bitwise_count"):
         return np.bitwise_count(x).astype(np.int16)
- 
-    # Fallback for older NumPy: look up bit counts byte by byte.
+
     return _POPCOUNT[x.view(np.uint8).reshape(-1, 8)].sum(axis=1, dtype=np.int16)
- 
- 
+
+
 @lru_cache(maxsize=2)
 def loadIndex(indexPath):
     index = json.loads(Path(indexPath).read_text(encoding="utf-8"))
@@ -83,33 +81,33 @@ def buildIndex(
                 rgb = image.convert("RGB")
                 hash1 = str(imagehash.phash(rgb))
                 flat = isFlat(rgb, minStd)
- 
+
             shotID = normaliseShotID(imagePath.stem)
- 
+
             if shotID in seen:
                 print(f"Duplicate shot ID {shotID} ({imagePath}), skipping")
                 dupeCount += 1
                 continue
             seen.add(shotID)
- 
+
             item = {
                 "shotID": shotID,
                 "hash": hash1,
                 "videoID": getVideoID(shotID),
                 "flat": flat,
             }
- 
+
             if shotTimes is not None:
                 if shotID not in shotTimes:
                     untimedCount += 1
                     continue
                 item["start"], item["end"] = shotTimes[shotID]
- 
+
             flatCount += flat
             index.append(item)
         except Exception as error:
             print(f"Error with {imagePath}: {error}")
- 
+
     indexPath.parent.mkdir(parents=True, exist_ok=True)
     indexPath.write_text(
         json.dumps(index, indent=2),
@@ -125,8 +123,6 @@ def extractFrames(videoPath: str, frameNo: int = 12, minStd: float = 12):
     totalFrames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = video.get(cv2.CAP_PROP_FPS) or 25
     frames = []
-    
-
 
     try:
         if not video.isOpened():
@@ -166,14 +162,11 @@ def loadQueryFrames(queryPath: str, frameNo: int = 12):
 
 
 def rankShots(dist, shotIDs, topK, matchThreshold):
-    # [NEW] Image queries have no time axis, so rank individual thumbnails.
-    # Output shape is the same as your original search().
-    best = dist.min(axis=0)                         # best frame distance, not a 25% average
+    best = dist.min(axis=0)
     matched = (dist <= matchThreshold).sum(axis=0)
- 
-    # stable sort: ties keep index order (= sorted file order)
+
     order = np.argsort(best, kind="stable")[:topK]
- 
+
     return [
         {
             "shotID": shotIDs[i],
@@ -182,35 +175,29 @@ def rankShots(dist, shotIDs, topK, matchThreshold):
         }
         for i in order
     ]
- 
- 
+
+
 def rankSegments(dist, queryFrames, duration, data, topK,
                  matchThreshold, binSeconds, candidatesPerFrame):
-    # [NEW] Temporal voting for video queries.
-    #
-    # A query frame at time tq that matches a thumbnail of shot [a, b] means the clip
-    # started somewhere in [a - tq, b - tq]. Each matching frame votes for every
-    # start-time bin in that interval. The true start bin gets a vote from every
-    # frame that matched correctly, so it ends up with the most votes.
     start, end, videoIDs = data["start"], data["end"], data["videoIDs"]
- 
+
     timed = ~np.isnan(start)
     if not timed.any():
         raise ValueError(
             "This index has no shot timing. Rebuild it with "
             "buildIndex(thumbnailDirectory, msbDirectory=...)."
         )
-    dist[:, ~timed] = HASH_BITS + 1                 # untimed shots can never match
- 
-    votes = defaultdict(lambda: [0.0, 0])           # (videoID, bin) -> [score, frames]
- 
+    dist[:, ~timed] = HASH_BITS + 1
+
+    votes = defaultdict(lambda: [0.0, 0])
+
     for (tq, _), row in zip(queryFrames, dist):
         candidates = np.flatnonzero(row <= matchThreshold)
         if len(candidates) > candidatesPerFrame:
             keep = np.argpartition(row[candidates], candidatesPerFrame)[:candidatesPerFrame]
             candidates = candidates[keep]
- 
-        best = {}                                   # one vote per frame per (video, bin)
+
+        best = {}
         for j in candidates:
             weight = 1 - float(row[j]) / HASH_BITS
             lo = max(0, math.floor((start[j] - tq) / binSeconds))
@@ -219,31 +206,28 @@ def rankSegments(dist, queryFrames, duration, data, topK,
                 key = (videoIDs[j], b)
                 if weight > best.get(key, 0.0):
                     best[key] = weight
- 
+
         for key, weight in best.items():
             votes[key][0] += weight
             votes[key][1] += 1
- 
-    # One result per video: its best-scoring start time.
+
     perVideo = defaultdict(dict)
     for (videoID, b), (score, frames) in votes.items():
         perVideo[videoID][b] = (score, frames)
- 
+
     results = []
     for videoID, bins in perVideo.items():
         peak = max(score for score, _ in bins.values())
         peakBins = sorted(b for b, (score, _) in bins.items() if score >= peak - 1e-9)
- 
-        # Several bins can tie (e.g. a long static shot). Take the first contiguous
-        # run of them and report its centre.
+
         run = [peakBins[0]]
         for b in peakBins[1:]:
             if b != run[-1] + 1:
                 break
             run.append(b)
- 
+
         estStart = (run[0] + run[-1] + 1) / 2 * binSeconds
- 
+
         results.append({
             "videoID": videoID,
             "start": round(estStart, 1),
@@ -251,18 +235,11 @@ def rankSegments(dist, queryFrames, duration, data, topK,
             "score": round(peak, 3),
             "matchedFrames": max(bins[b][1] for b in run),
         })
- 
+
     results.sort(key=lambda result: (-result["score"], result["videoID"]))
-    print("Best distances:", np.sort(best)[:10])
-    print("Maximum matched frames:", matched.max())
-    print("Shots with at least one match:", np.sum(matched > 0))
     return results[:topK]
- 
- 
-# ---------------------------------------------------------------------------
-# Search
-# ---------------------------------------------------------------------------
- 
+
+
 def search(
     videoPath: str = None,
     topK: int = 10,
@@ -276,31 +253,27 @@ def search(
     queryPath = videoPath or imagePath
     if queryPath is None:
         raise ValueError("Provide videoPath or imagePath")
- 
+
     if topK <= 0:
         return []
- 
-    queryFrames, duration = loadQueryFrames(queryPath, frameNo)   # [CHANGED] now returns a tuple
+
+    queryFrames, duration = loadQueryFrames(queryPath, frameNo)
     if not queryFrames:
         return []
- 
-    data = loadIndex(Path(indexPath))               # [CHANGED] cached; was re-read from disk every call
-    if not len(data["hashes"]):                     # [CHANGED] was `if not index:`
+
+    data = loadIndex(Path(indexPath))
+    if not len(data["hashes"]):
         return []
- 
+
     queryHashes = [
-        int(str(imagehash.phash(frame.convert("RGB"))), 16)         # [CHANGED] as int for numpy
-        for frame in queryFrames                                 # [CHANGED] frames are (time, image)
+        int(str(imagehash.phash(frame.convert("RGB"))), 16)
+        for _, frame in queryFrames
     ]
- 
-    # [CHANGED] vectorised Hamming distances, shape (queryFrames, indexedShots).
-    # Replaces the Python loop over every index item.
+
     dist = np.stack([hammingRow(q, data["hashes"]) for q in queryHashes])
- 
-    # [CHANGED] image queries -> per-shot ranking; video queries -> temporal voting
+
     if Path(queryPath).suffix.lower() in formats:
         return rankShots(dist, data["shotIDs"], topK, matchThreshold)
- 
+
     return rankSegments(dist, queryFrames, duration, data, topK,
                         matchThreshold, binSeconds, candidatesPerFrame)
- 
