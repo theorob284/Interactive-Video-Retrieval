@@ -9,10 +9,7 @@ DATA_PATH = ROOT / "data" / "assignment2_data" / "videos_metadata.json"
 with DATA_PATH.open(encoding="utf-8") as file:
     records = json.load(file)
 
-metadata_by_id = {
-    record["v3cId"]: record
-    for record in records
-}
+metadata_by_id = {record["v3cId"]: record for record in records}
 
 engine = TextSearch(records)
 

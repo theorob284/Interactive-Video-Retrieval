@@ -6,6 +6,9 @@ from functools import lru_cache
 from pathlib import Path
 from PIL import Image
 
+DEFAULT_INDEX = "indexes/phashIndex.json"
+HASH_BITS = 64
+
 formats = {".jpg", ".jpeg", ".png", ".webp"}
 DEFAULT_INDEX = Path(__file__).resolve().parent / "data" / "visual_index.json"
 
@@ -85,7 +88,7 @@ def buildIndex(
  
             if shotID in seen:
                 print(f"Duplicate shot ID {shotID} ({imagePath}), skipping")
-                duplicateCount += 1
+                dupeCount += 1
                 continue
             seen.add(shotID)
  
@@ -157,7 +160,7 @@ def loadQueryFrames(queryPath: str, frameNo: int = 12):
     queryPath = Path(queryPath)
     if queryPath.suffix.lower() in formats:
         with Image.open(queryPath) as image:
-            return [image.convert("RGB")], 0.0
+            return [(0.0, image.convert("RGB"))], 0.0
 
     return extractFrames(str(queryPath), frameNo)
 

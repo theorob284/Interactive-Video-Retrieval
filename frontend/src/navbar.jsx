@@ -5,6 +5,7 @@ import {Link, Route, Routes} from 'react-router-dom';
 
 import VisualSearch from './visualSearch';
 import BM25 from './bm25';
+import AVS from './avs';
 
 function Navigation() {
     return (
@@ -16,6 +17,7 @@ function Navigation() {
                     <Nav.Link as={Link} to="/">Home</Nav.Link>
                     <Nav.Link as={Link} to="/text-search">Text Search</Nav.Link>
                     <Nav.Link as={Link} to="/visual-search">Visual Search</Nav.Link>
+                    <Nav.Link as={Link} to="/avs">AVS</Nav.Link>
                 </Nav>
                 </Container>
             </Navbar>
@@ -24,6 +26,7 @@ function Navigation() {
                 <Route path="/" element={<h2>Home</h2>} />
                 <Route path="/text-search" element={<BM25 />} />
                 <Route path="/visual-search" element={<VisualSearch />} />
+                <Route path="/avs" element={<AVS />} />
             </Routes>
         </div>
     )

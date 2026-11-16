@@ -95,7 +95,7 @@ export default function VisualSearch() {
                 <tr>
                 <th>Rank</th>
                 <th>Shot ID</th>
-                <th>Distance</th>
+                <th>Distance / Score</th>
                 <th>Matched Frames</th>
                 <th>Action</th>
                 </tr>
@@ -106,7 +106,7 @@ export default function VisualSearch() {
                 <tr key={result.shotID}>
                     <td>{index + 1}</td>
                     <td>{result.shotID}</td>
-                    <td>{result.distance}</td>
+                    <td>{result.distance ?? result.score ?? "—"}</td>
                     <td>{result.matchedFrames}</td>
                     <td><Button variant="outline-primary" size="sm" onClick={() => setSelectedShot(result)}> Select Shot</Button></td>
                 </tr>
