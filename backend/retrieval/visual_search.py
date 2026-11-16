@@ -5,12 +5,15 @@ from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
 from PIL import Image
+from zipfile import ZipFile
+from io import BytesIO
 
-DEFAULT_INDEX = "indexes/phashIndex.json"
 HASH_BITS = 64
 
 formats = {".jpg", ".jpeg", ".png", ".webp"}
-DEFAULT_INDEX = Path(__file__).resolve().parent / "data" / "visual_index.json"
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_INDEX = PROJECT_ROOT / "indexes" / "phashIndex.json"
 
 def getVideoID(shot_id):
     return shot_id[4:].split("_")[0]
@@ -58,64 +61,86 @@ def loadIndex(indexPath):
         "end": np.array([item.get("end", np.nan) for item in index], dtype=float),
     }
 
+
 def buildIndex(
     thumbnailDirectory: str,
     indexPath: str = DEFAULT_INDEX,
-    msbDirectory : str = None,
-    minStd : float = 12
+    msbDirectory: str = None,
+    minStd: float = 12
 ):
     thumbnailDirectory = Path(thumbnailDirectory)
     indexPath = Path(indexPath)
 
     shotTimes = loadShotTimes(msbDirectory) if msbDirectory else None
-    seen = set()
-    flatCount = dupeCount = untimedCount = 0
 
+    seen = set()
+    flatCount = 0
+    dupeCount = 0
+    untimedCount = 0
     index = []
 
-    for imagePath in sorted(thumbnailDirectory.rglob("*")):
-        if imagePath.suffix.lower() not in formats:
-            continue
+    for zipPath in sorted(thumbnailDirectory.rglob("*.zip")):
+        print(f"Indexing {zipPath.name}")
+
         try:
-            with Image.open(imagePath) as image:
-                rgb = image.convert("RGB")
-                hash1 = str(imagehash.phash(rgb))
-                flat = isFlat(rgb, minStd)
+            with ZipFile(zipPath) as archive:
+                for filename in archive.namelist():
+                    imagePath = Path(filename)
 
-            shotID = normaliseShotID(imagePath.stem)
+                    if imagePath.suffix.lower() not in formats:
+                        continue
 
-            if shotID in seen:
-                print(f"Duplicate shot ID {shotID} ({imagePath}), skipping")
-                dupeCount += 1
-                continue
-            seen.add(shotID)
+                    shotID = normaliseShotID(imagePath.stem)
 
-            item = {
-                "shotID": shotID,
-                "hash": hash1,
-                "videoID": getVideoID(shotID),
-                "flat": flat,
-            }
+                    if shotID in seen:
+                        dupeCount += 1
+                        continue
 
-            if shotTimes is not None:
-                if shotID not in shotTimes:
-                    untimedCount += 1
-                    continue
-                item["start"], item["end"] = shotTimes[shotID]
+                    try:
+                        with Image.open(BytesIO(archive.read(filename))) as image:
+                            rgb = image.convert("RGB")
+                            hash1 = str(imagehash.phash(rgb))
+                            flat = isFlat(rgb, minStd)
 
-            flatCount += flat
-            index.append(item)
+                        item = {
+                            "shotID": shotID,
+                            "hash": hash1,
+                            "videoID": getVideoID(shotID),
+                            "flat": flat,
+                        }
+
+                        if shotTimes is not None:
+                            if shotID not in shotTimes:
+                                untimedCount += 1
+                                continue
+
+                            item["start"], item["end"] = shotTimes[shotID]
+
+                        seen.add(shotID)
+                        flatCount += flat
+                        index.append(item)
+
+                    except Exception as error:
+                        print(f"Error indexing {filename}: {error}")
+
         except Exception as error:
-            print(f"Error with {imagePath}: {error}")
+            print(f"Error opening {zipPath}: {error}")
 
     indexPath.parent.mkdir(parents=True, exist_ok=True)
+
     indexPath.write_text(
         json.dumps(index, indent=2),
         encoding="utf-8"
     )
+
     loadIndex.cache_clear()
+
     print(f"Indexed {len(index)} images")
+    print(f"Flat images: {flatCount}")
+    print(f"Duplicates skipped: {dupeCount}")
+    print(f"Shots without timestamps: {untimedCount}")
     print(f"Index saved to {indexPath}")
+
 
 
 def extractFrames(videoPath: str, frameNo: int = 12, minStd: float = 12):

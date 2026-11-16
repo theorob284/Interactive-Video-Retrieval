@@ -15,8 +15,8 @@ function Navigation() {
                 <Container>
                 <Navbar.Brand as={Link} to="/">Video Retrieval</Navbar.Brand>
                 <Nav className="me-auto">
-                    <Nav.Link as={Link} to="/text-search">Text Search</Nav.Link>
                     <Nav.Link as={Link} to="/visual-search">Visual Search</Nav.Link>
+                    <Nav.Link as={Link} to="/text-search">Text Search</Nav.Link>
                     <Nav.Link as={Link} to="/avs">Ad-Hoc Video Search</Nav.Link>
                 </Nav>
                 </Container>
@@ -24,8 +24,8 @@ function Navigation() {
 
             <Routes>
                 <Route path="/" element={<Home />}> </Route>
-                <Route path="/text-search" element={<BM25 />} />
                 <Route path="/visual-search" element={<VisualSearch />} />
+                <Route path="/text-search" element={<BM25 />} />
                 <Route path="/avs" element={<AVS />} />
             </Routes>
         </div>

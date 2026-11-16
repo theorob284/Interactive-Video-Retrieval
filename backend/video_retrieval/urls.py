@@ -10,4 +10,5 @@ urlpatterns = [
     path("videos/<str:video_id>/file/", views.video_file, name="video_file"),
     path("dres/submit/", views.submit_shot, name="submit_shot"),
     path("search/avs/", views.avs_search, name="avs_search"),
+    path("submit/avs/", views.submit_avs, name="submit_avs"),
 ]

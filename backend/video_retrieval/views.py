@@ -12,7 +12,7 @@ from django.views.decorators.http import require_GET, require_POST
 from django.shortcuts import get_object_or_404
 
 from video_retrieval.models import Video, Shot
-from video_retrieval.dres_client import build_submission, submit_to_dres
+from video_retrieval.dres_client import build_submission, build_avs_submission, submit_to_dres
 
 from retrieval.text_search import TextSearch
 from retrieval.visual_search import search as visual_search
@@ -314,6 +314,68 @@ def submit_shot(request):
         "response": dres_response,
     })
 
+
+@require_POST
+def submit_avs(request):
+    try:
+        data = json.loads(request.body)
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    if not isinstance(data, dict):
+        return JsonResponse({"error": "Expected a JSON object"}, status=400)
+
+    shot_ids = data.get("shot_ids")
+
+    if not isinstance(shot_ids, list) or not shot_ids or not all(isinstance(s, str) and s for s in shot_ids):
+        return JsonResponse({"error": "Provide a list of shot IDs"}, status=400)
+
+    if len(shot_ids) != len(set(shot_ids)):
+        return JsonResponse({"error": "Duplicate shots selected"}, status=400)
+
+    shot_lookup = {shot.shot_id: shot for shot in Shot.objects.filter(shot_id__in=shot_ids)}
+
+    if len(shot_lookup) != len(shot_ids):
+        return JsonResponse({"error": "One or more shots were not found"}, status=404)
+
+    shots = [shot_lookup[shot_id] for shot_id in shot_ids]
+    payload = build_avs_submission(shots)
+
+    # Preview without submitting to DRES.
+    if data.get("submit") is not True:
+        return JsonResponse({
+            "mode": "preview",
+            "payload": payload,
+        })
+
+    if os.getenv("DRES_ENABLE_LIVE", "false").lower() != "true":
+        return JsonResponse({"error": "Live DRES submission is disabled"}, status=403)
+
+    required = (
+        "DRES_BASE_URL",
+        "DRES_EVALUATION_ID",
+        "DRES_SESSION_TOKEN",
+    )
+
+    if any(not os.getenv(name) for name in required):
+        return JsonResponse({"error": "DRES configuration is incomplete"}, status=503)
+
+    try:
+        status, body = submit_to_dres(payload)
+    except (ConnectionError, TimeoutError):
+        return JsonResponse({"error": "Unable to reach DRES"}, status=502)
+
+    try:
+        dres_response = json.loads(body)
+    except ValueError:
+        dres_response = {"message": body[:1000]}
+
+    return JsonResponse({
+        "mode": "live",
+        "accepted": status in (200, 202),
+        "dres_status": status,
+        "response": dres_response,
+    })
 
 @require_GET
 def avs_search(request):

@@ -22,6 +22,24 @@ def build_submission(shot):
         ]
     }
 
+def build_avs_submission(shots):
+    """Build a DRES submission containing multiple temporal answers."""
+
+    return {
+        "answerSets": [
+            {
+                "answers": [
+                    {
+                        "mediaItemName": shot.video_id,
+                        "start": shot.start_ms,
+                        "end": shot.end_ms,
+                    }
+                    for shot in shots
+                ]
+            }
+        ]
+    }
+
 def submit_to_dres(payload):
     """Send a submission to the current DRES evaluation."""
 

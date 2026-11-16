@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, Card } from "react-bootstrap";
 import DresSubmission from "../DresSubmission";
 
-export default function VideoPlayer({ videoId, shot }) {
+export default function VideoPlayer({ videoId, shot, showDres = true }) {
     const videoRef = useRef(null);
     const [error, setError] = useState("");
 
@@ -38,7 +38,7 @@ export default function VideoPlayer({ videoId, shot }) {
             <video key={videoId} ref={videoRef} controls preload="metadata" style={{ width: "100%", maxHeight: "500px" }} src={`/api/videos/${videoId}/file/`}
             onError={() => setError("Video could not be played. Check the file path and browser codec support.")}/>
 
-            <DresSubmission shot={shot} />
+            {showDres && <DresSubmission shot={shot} />}
 
             {error && <Alert variant="warning" className="mt-3">{error}</Alert>}
         </Card.Body>
