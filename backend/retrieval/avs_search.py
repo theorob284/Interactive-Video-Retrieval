@@ -1,4 +1,3 @@
-
 import csv
 import json
 from pathlib import Path
@@ -111,8 +110,6 @@ def removeDupes(results):
 def diversify(results, max_per_video=2):
     video_counts = {}
     diversified = []
-
-    # Spread candidates across each video's duration.
     shotsByVideo = {}
 
     for result in results:
@@ -129,7 +126,6 @@ def diversify(results, max_per_video=2):
             index = (2 * i + 1) * len(video_shots) // (2 * count)
             diversified.append(video_shots[index])
 
-    # Restore ranking by BM25 score.
     diversified.sort(key=lambda result: result["score"], reverse=True)
 
     return diversified
