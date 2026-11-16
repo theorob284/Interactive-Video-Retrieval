@@ -3,16 +3,9 @@ name = "interactive-video-retrieval"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "beautifulsoup4>=4.15.0",
     "click>=8.5.0",
     "django>=5.2.18",
-    "imagehash>=4.3.2",
-    "nltk>=3.10.4",
-    "numpy>=2.4.6",
-    "opencv-python>=5.0.0.93",
-    "opencv-python-headless>=5.0.0.93",
     "pandas>=3.1.0",
-    "pillow>=13.0.0",
-    "python-dotenv>=1.2.4",
     "rank-bm25>=0.2.2",
+    "Pillow>=10.0.0"
 ]
