@@ -7,6 +7,7 @@ from pathlib import Path
 from PIL import Image
 
 formats = {".jpg", ".jpeg", ".png", ".webp"}
+DEFAULT_INDEX = Path(__file__).resolve().parent / "data" / "visual_index.json"
 
 def getVideoID(shot_id):
     return shot_id[4:].split("_")[0]
@@ -71,7 +72,7 @@ def buildIndex(
 
     index = []
 
-    or imagePath in sorted(thumbnailDirectory.rglob("*")):
+    for imagePath in sorted(thumbnailDirectory.rglob("*")):
         if imagePath.suffix.lower() not in formats:
             continue
         try:
@@ -249,7 +250,9 @@ def rankSegments(dist, queryFrames, duration, data, topK,
         })
  
     results.sort(key=lambda result: (-result["score"], result["videoID"]))
- 
+    print("Best distances:", np.sort(best)[:10])
+    print("Maximum matched frames:", matched.max())
+    print("Shots with at least one match:", np.sum(matched > 0))
     return results[:topK]
  
  
@@ -284,7 +287,7 @@ def search(
  
     queryHashes = [
         int(str(imagehash.phash(frame.convert("RGB"))), 16)         # [CHANGED] as int for numpy
-        for _, frame in queryFrames                                 # [CHANGED] frames are (time, image)
+        for frame in queryFrames                                 # [CHANGED] frames are (time, image)
     ]
  
     # [CHANGED] vectorised Hamming distances, shape (queryFrames, indexedShots).
