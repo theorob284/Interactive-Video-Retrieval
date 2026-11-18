@@ -73,6 +73,9 @@ The assignment uses a curated set of **1,000 V3C videos**. Download the recommen
 
 ```powershell
 uv run python scripts/student_download.py --packages metadata,msb,thumbnails,videos_480p --dest data/assignment2_data
+
+# Extract .tsv files from zip
+Expand-Archive -Path "data/assignment2_data/msb.zip" -DestinationPath "data/assignment2_data/msb" -Force
 ```
 
 Useful downloader commands:
@@ -86,7 +89,14 @@ uv run python scripts/student_download.py --packages metadata,msb,thumbnails,vid
 
 # Verify files already downloaded
 uv run python scripts/student_download.py --verify-only --dest data/assignment2_data
+
+# Extract test png images
+New-Item -ItemType Directory -Force test_images
+
+uv run python -c "import zipfile, pathlib; z=zipfile.ZipFile('data/assignment2_data/thumbnails/00031.zip'); n=next(x for x in z.namelist() if x.endswith('.png')); pathlib.Path('test_images/sample.png').write_bytes(z.read(n)); print('Extracted:', n)"
 ```
+
+
 
 Downloads can be resumed by rerunning the command; existing valid files are skipped. Downloaded video and thumbnail files remain on disk and are served by Django — they are **not uploaded into the database**.
 

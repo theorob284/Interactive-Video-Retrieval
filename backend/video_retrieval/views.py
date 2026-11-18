@@ -21,19 +21,21 @@ from retrieval.avs_search import expandVidResults, removeDupes, diversify
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 VISUAL_INDEX = PROJECT_ROOT / "indexes" / "phashIndex.json"
 DATA_PATH = (Path(__file__).resolve().parents[2]/ "data"/"assignment2_data"/"videos_metadata.json")
+TEXT_INDEX = PROJECT_ROOT / "indexes" / "text_bm25.pkl"
+
 
 @lru_cache(maxsize=1)
 def get_search_engine():
-    """Load metadata and initialise BM25 once."""
+    """Load the saved BM25 index once and cache it."""
+
+    engine = TextSearch.load(TEXT_INDEX)
+
     with DATA_PATH.open(encoding="utf-8") as file:
         records = json.load(file)
-
-    engine = TextSearch(records)
 
     metadata = {record["v3cId"]: record for record in records}
 
     return engine, metadata
-
 
 @require_GET
 def text_search(request):

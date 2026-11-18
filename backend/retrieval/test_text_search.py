@@ -11,7 +11,7 @@ with DATA_PATH.open(encoding="utf-8") as file:
 
 metadata_by_id = {record["v3cId"]: record for record in records}
 
-engine = TextSearch(records)
+search_engine = TextSearch.load("indexes/text_bm25.pkl")
 
 print("BM25 Text Search")
 print("Enter a query, or type 'exit' to quit.")
@@ -22,7 +22,7 @@ while True:
     if query.lower() == "exit":
         break
 
-    results = engine.search(query, top_k=10)
+    results = search_engine.search(query, top_k=10)
 
     if not results:
         print("No matching videos found.")
