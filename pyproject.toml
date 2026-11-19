@@ -15,4 +15,5 @@ dependencies = [
     "opencv-python-headless>=5.0.0.93",
     "python-dotenv>=1.2.4",
     "dotenv>=0.9.9",
+    "open-clip-torch>=4.2.2",
 ]

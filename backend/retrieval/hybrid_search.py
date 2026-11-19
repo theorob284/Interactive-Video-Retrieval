@@ -7,7 +7,7 @@ class HybridSearch:
         metadata_engine,
         transcript_engine,
         metadata_weight=1.0,
-        transcript_weight=1.0,
+        transcript_weight=0.5,
         rrf_k=60,
     ):
         self.metadata_engine = metadata_engine

@@ -18,6 +18,7 @@ from retrieval.text_search import TextSearch, find_relevant_passages
 from retrieval.visual_search import search as visual_search
 from retrieval.avs_search import expandVidResults, removeDupes, diversify, prioritiseTranscriptShots
 from retrieval.hybrid_search import HybridSearch
+from retrieval.clip_search import search_shots as clip_search_shots
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 VISUAL_INDEX = PROJECT_ROOT / "indexes" / "phashIndex.json"
@@ -38,7 +39,7 @@ def get_search_engine():
         metadata_engine,
         transcript_engine,
         metadata_weight=1.0,
-        transcript_weight=1.0,
+        transcript_weight=0.5,
     )
 
     with DATA_PATH.open(encoding="utf-8") as file:
@@ -508,6 +509,58 @@ def avs_search(request):
     if not query:
         return JsonResponse({"results": []})
 
+    search_engine = request.GET.get("engine", "clip")
+
+    if search_engine not in {"clip", "bm25"}:
+        return JsonResponse(
+            {"error": "Unknown AVS search engine"},
+            status=400,
+        )
+
+    if search_engine == "clip":
+        try:
+            matches = clip_search_shots(
+                query,
+                top_k=60,
+                max_per_video=3,
+            )
+        except (FileNotFoundError, ValueError) as error:
+            return JsonResponse(
+                {"error": str(error)},
+                status=503,
+            )
+
+        # Retrieve authoritative shot boundaries from Django.
+        shot_lookup = {
+            shot.shot_id: shot
+            for shot in Shot.objects.filter(
+                shot_id__in=[
+                    match["shot_id"] for match in matches
+                ]
+            )
+        }
+
+        formatted = []
+
+        for match in matches:
+            shot = shot_lookup.get(match["shot_id"])
+
+            if shot is None:
+                continue
+
+            formatted.append({
+                "shot_id": shot.shot_id,
+                "video_id": shot.video_id,
+                "start_ms": shot.start_ms,
+                "end_ms": shot.end_ms,
+                "score": match["score"],
+                "thumbnail_url": (
+                    f"/api/shots/{shot.shot_id}/thumbnail/"
+                ),
+            })
+
+        return JsonResponse({"results": formatted})
+
     # Reuse existing BM25
     engine, _ = get_search_engine()
     vidResults = engine.search(query, top_k=20)
@@ -536,7 +589,7 @@ def avs_search(request):
 
     results = diversify(
         results,
-        max_per_video=2,
+        max_per_video=8,
         prefer_top=True,
     )
 
@@ -550,7 +603,7 @@ def avs_search(request):
             "score": result["score"],
             "thumbnail_url": f'/api/shots/{result["shotID"]}/thumbnail/',
         }
-        for result in results[:40]
+        for result in results[:60]
     ]
 
     return JsonResponse({"results": formatted})
