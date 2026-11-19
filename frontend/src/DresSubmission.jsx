@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { Alert, Button, Card, Spinner } from "react-bootstrap";
+import { Alert, Button, Card, Form, Spinner } from "react-bootstrap";
 
 function getCookie(name) {
     const cookie = document.cookie.split("; ").find((item) => item.startsWith(`${name}=`));
@@ -12,6 +12,8 @@ export default function DresSubmission({ shot }) {
     const [error, setError] = useState("");
     const [preview, setPreview] = useState(null);
     const [submission, setSubmission] = useState(null);
+    const [evaluationId, setEvaluationId] = useState("");
+
     const LIVE_ENABLED = true;
 
     useEffect(() => {
@@ -43,10 +45,7 @@ export default function DresSubmission({ shot }) {
             method: "POST",
             credentials: "same-origin",
             headers: {"Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken"),},
-            body: JSON.stringify({
-            shot_id: shot.shot_id,
-            submit,
-            }),
+            body: JSON.stringify({shot_id: shot.shot_id, submit, evaluation_id: evaluationId.trim(),}),
         });
 
         const data = await response.json();
@@ -75,9 +74,13 @@ export default function DresSubmission({ shot }) {
             <Card.Title>DRES Submission</Card.Title>
             <p className="mb-3">Selected shot: <strong>{shot.shot_id}</strong></p>
 
+        <Form.Group className="mb-3" controlId="dresEvaluationId">
+            <Form.Label>DRES Evaluation ID</Form.Label>
+            <Form.Control type="text" placeholder="Enter evaluation/run ID" value={evaluationId} onChange={(e) => {setEvaluationId(e.target.value); setSubmission(null);}} autoComplete="off"/>
+        </Form.Group>
             <div className="d-flex gap-2 flex-wrap">
                 <Button variant="primary" disabled={loading} onClick={() => sendRequest(false)}> Preview Submission</Button>
-                <Button variant="success" disabled={loading || !LIVE_ENABLED} onClick={() => sendRequest(true)}> Submit to DRES</Button>
+                <Button variant="success" disabled={loading || !LIVE_ENABLED || !evaluationId.trim()} onClick={() => sendRequest(true)}>Submit to DRES</Button>
             </div>
 
             {loading && (<Spinner animation="border" size="sm" className="mt-3" />)}
@@ -94,7 +97,7 @@ export default function DresSubmission({ shot }) {
 
             {submission && (
                 <Alert variant={submission.accepted ? "success" : "warning"}className="mt-3">
-                    <strong>DRES response received</strong>
+                    <strong>{submission.accepted ? "DRES submission accepted": "DRES submission not accepted"}</strong>
                     <pre className="mb-0 mt-2" style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(submission.response, null, 2)}</pre>
                 </Alert>
             )}

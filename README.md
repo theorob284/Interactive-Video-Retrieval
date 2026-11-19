@@ -76,6 +76,14 @@ uv run python scripts/student_download.py --packages metadata,msb,thumbnails,vid
 
 # Extract .tsv files from zip
 Expand-Archive -Path "data/assignment2_data/msb.zip" -DestinationPath "data/assignment2_data/msb" -Force
+
+# Extract downloaded V3C1 transcripts from download folder into correct place
+New-Item -ItemType Directory -Force "data/assignment2_data/transcripts"
+
+Expand-Archive `
+    -Path "$HOME\Downloads\V3C1.zip" `
+    -DestinationPath "data/assignment2_data/transcripts" `
+    -Force
 ```
 
 Useful downloader commands:
@@ -95,8 +103,6 @@ New-Item -ItemType Directory -Force test_images
 
 uv run python -c "import zipfile, pathlib; z=zipfile.ZipFile('data/assignment2_data/thumbnails/00031.zip'); n=next(x for x in z.namelist() if x.endswith('.png')); pathlib.Path('test_images/sample.png').write_bytes(z.read(n)); print('Extracted:', n)"
 ```
-
-
 
 Downloads can be resumed by rerunning the command; existing valid files are skipped. Downloaded video and thumbnail files remain on disk and are served by Django — they are **not uploaded into the database**.
 

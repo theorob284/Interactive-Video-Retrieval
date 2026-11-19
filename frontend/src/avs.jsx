@@ -17,6 +17,8 @@ export default function AVS() {
     const [submission, setSubmission] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [submissionError, setSubmissionError] = useState("");
+    const [evaluationId, setEvaluationId] = useState("");
+
 
     const videoPlayerRef = useRef(null);
 
@@ -109,10 +111,7 @@ export default function AVS() {
                     "Content-Type": "application/json",
                     "X-CSRFToken": getCookie("csrftoken"),
                 },
-                body: JSON.stringify({
-                    shot_ids: selectedShots.map((shot) => shot.shot_id),
-                    submit,
-                }),
+                body: JSON.stringify({shot_ids: selectedShots.map((shot) => shot.shot_id), submit, evaluation_id: evaluationId.trim(),}),
             });
 
             const data = await response.json();
@@ -191,12 +190,14 @@ export default function AVS() {
                             </div>
                         ))}
 
-                        <div className="d-flex gap-2 mt-3">
-                            <Button variant="primary" disabled={submitting} onClick={() => handleSubmission(false)}>Preview Submission</Button>
+                        <Form.Group className="mt-3" controlId="avsEvaluationId">
+                            <Form.Label>DRES Evaluation ID</Form.Label>
+                            <Form.Control type="text" placeholder="Enter evaluation/run ID" value={evaluationId} onChange={(e) => {setEvaluationId(e.target.value); setSubmission(null)}}autoComplete="off"disabled={submitting}/>
+                        </Form.Group>
 
-                            <Button variant="success" disabled={submitting || !preview} onClick={() => handleSubmission(true)}>
-                                {submitting ? "Processing..." : "Submit to DRES"}
-                            </Button>
+                        <div className="d-flex gap-2 mt-3">
+                            <Button variant="primary" disabled={submitting} onClick={() => handleSubmission(false)}>Preview Submission</Button>     
+                            <Button variant="success" disabled={submitting || !preview || !evaluationId.trim()} onClick={() => handleSubmission(true)}>{submitting ? "Processing..." : "Submit to DRES"}</Button>
                         </div>
 
                         {submissionError && (
@@ -221,7 +222,7 @@ export default function AVS() {
                         {submission && (
                             <Alert
                                 variant={ submission.accepted ? "success" : "warning"} dismissible className="mt-3" onClose={() => setSubmission(null)}>
-                                <strong>DRES response received.</strong>
+                                <strong>{submission.accepted ? "DRES submission accepted.": "DRES submission not accepted."}</strong>
                                 <p className="mb-2">
                                     HTTP status: {submission.dres_status}
                                 </p>

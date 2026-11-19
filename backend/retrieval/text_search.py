@@ -55,9 +55,9 @@ def load_transcripts(transcript_dir):
     return transcripts
 
 class TextSearch:
-    """BM25 retrieval over video-level metadata."""
+    """BM25 retrieval over video metadata or Whisper transcripts."""
 
-    def __init__(self, records, k1=1.5, b=0.75, transcripts=None):
+    def __init__(self, records, k1=1.5, b=0.75, transcripts=None, source="metadata"):
         self.video_ids = []
         documents = []
         seen_ids = set()
@@ -81,16 +81,20 @@ class TextSearch:
             if isinstance(tags, list):
                 tags = " ".join(map(str, tags))
 
-            transcript = transcripts.get(video_id, "")
+            if source == "metadata":
+                content = " ".join([
+                    title,
+                    description,
+                    str(tags),
+                    normalise_categories(categories),
+                    channel,
+                ])
 
-            content = " ".join([
-                " ".join([title] * 3),
-                " ".join([str(tags)] * 2),
-                description,
-                normalise_categories(categories),
-                channel,
-                transcript,
-            ])
+            elif source == "transcript":
+                content = (transcripts or {}).get(video_id, "")
+
+            else:
+                raise ValueError(f"Unknown index source: {source}")
 
             tokens = tokenize(content)
 
@@ -165,3 +169,201 @@ class TextSearch:
         search_engine.index = data["index"]
 
         return search_engine
+
+# Transcript timestamps are used to locate relevant moments
+# after the existing BM25 indexes have retrieved videos.
+
+TRANSCRIPT_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "data"
+    / "assignment2_data"
+    / "transcripts"
+)
+
+SRT_TIME_PATTERN = re.compile(
+    r"(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*"
+    r"(\d{2}:\d{2}:\d{2},\d{3})"
+)
+
+IGNORED_LABELS = {
+    "music", "[music]", "(music)",
+    "silence", "[silence]", "(silence)",
+}
+
+
+def srt_time_to_ms(timestamp):
+    hours, minutes, remainder = timestamp.split(":")
+    seconds, milliseconds = remainder.split(",")
+
+    return (
+        int(hours) * 3600000
+        + int(minutes) * 60000
+        + int(seconds) * 1000
+        + int(milliseconds)
+    )
+
+
+@lru_cache(maxsize=128)
+def load_srt_segments(video_id):
+    """Load and cache timestamped speech for one video."""
+
+    matches = list(TRANSCRIPT_DIR.rglob(f"{video_id}.srt"))
+
+    if not matches:
+        return []
+
+    content = matches[0].read_text(
+        encoding="utf-8-sig",
+        errors="replace",
+    ).replace("\r\n", "\n")
+
+    segments = []
+
+    for block in re.split(r"\n\s*\n", content):
+        lines = block.strip().splitlines()
+
+        for index, line in enumerate(lines):
+            match = SRT_TIME_PATTERN.search(line)
+
+            if not match:
+                continue
+
+            text = " ".join(lines[index + 1:]).strip()
+            text = re.sub(r"<[^>]+>", " ", text)
+            text = " ".join(text.split())
+
+            if not text or text.casefold() in IGNORED_LABELS:
+                break
+
+            start_ms = srt_time_to_ms(match.group(1))
+            end_ms = srt_time_to_ms(match.group(2))
+
+            if end_ms > start_ms:
+                segments.append({
+                    "start_ms": start_ms,
+                    "end_ms": end_ms,
+                    "text": text,
+                })
+
+            break
+
+    return sorted(segments, key=lambda s: s["start_ms"])
+
+def find_relevant_passages(
+    video_id,
+    query,
+    top_k=3,
+    window_ms=20000,
+    step_ms=10000,
+):
+    """Find relevant timestamped speech passages in a video."""
+
+    segments = load_srt_segments(video_id)
+
+    if not segments or top_k <= 0:
+        return []
+
+    query_tokens = preprocess_query(query)
+
+    if not query_tokens:
+        return []
+
+    video_end = max(s["end_ms"] for s in segments)
+    passages = []
+    documents = []
+
+    for start in range(0, video_end, step_ms):
+        end = min(start + window_ms, video_end)
+
+        matching = [
+            s["text"]
+            for s in segments
+            if s["start_ms"] < end and s["end_ms"] > start
+        ]
+
+        if not matching:
+            continue
+
+        text = " ".join(matching)
+        tokens = tokenize(text)
+
+        if not tokens:
+            continue
+
+        
+        query_terms = set(query_tokens)
+
+        matched_segments = []
+
+        for segment in segments:
+            if (
+                segment["start_ms"] >= end
+                or segment["end_ms"] <= start
+            ):
+                continue
+
+            segment_tokens = set(tokenize(segment["text"]))
+            matched_terms = query_terms & segment_tokens
+
+            if matched_terms:
+                matched_segments.append({
+                    "start_ms": segment["start_ms"],
+                    "end_ms": segment["end_ms"],
+                    "coverage": len(matched_terms) / len(query_terms),
+                })
+
+        passages.append({
+            "video_id": video_id,
+            "start_ms": start,
+            "end_ms": end,
+            "text": text,
+            "matched_segments": matched_segments,
+        })
+
+        documents.append(tokens)
+
+
+    if not documents:
+        return []
+
+    index = BM25Okapi(documents)
+    scores = index.get_scores(query_tokens)
+
+    
+    query_terms = set(query_tokens)
+    adjusted_scores = []
+
+    for i, score in enumerate(scores):
+        if score <= 0:
+            continue
+
+        passage_terms = set(documents[i])
+
+        coverage = (
+            len(query_terms & passage_terms) / len(query_terms)
+        )
+
+        adjusted_score = float(score) * (
+            1 + 0.3 * coverage
+        )
+
+        adjusted_scores.append(
+            (i, adjusted_score, coverage)
+        )
+
+    ranked = sorted(
+        adjusted_scores,
+        key=lambda item: item[1],
+        reverse=True,
+    )
+
+    results = []
+
+    for i, score, coverage in ranked[:top_k]:
+        results.append({
+            **passages[i],
+            "score": score,
+            "coverage": coverage,
+        })
+
+    return results

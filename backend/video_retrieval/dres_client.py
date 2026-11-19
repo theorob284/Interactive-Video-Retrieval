@@ -40,12 +40,17 @@ def build_avs_submission(shots):
         ]
     }
 
-def submit_to_dres(payload):
-    """Send a submission to the current DRES evaluation."""
+
+def submit_to_dres(payload, evaluation_id):
+    """Send a submission to the selected DRES evaluation."""
 
     base_url = os.environ["DRES_BASE_URL"].rstrip("/")
-    evaluation_id = os.environ["DRES_EVALUATION_ID"]
     session_token = os.environ["DRES_SESSION_TOKEN"]
+
+    if not isinstance(evaluation_id, str) or not evaluation_id.strip():
+        raise ValueError("A DRES evaluation ID is required.")
+
+    evaluation_id = evaluation_id.strip()
 
     url = (
         f"{base_url}/api/v2/submit/"
@@ -71,9 +76,8 @@ def submit_to_dres(payload):
 
     except HTTPError as error:
         print("DRES HTTP status:", error.code)
-        print("Response server:", error.headers.get("Server"))
-        print("Cloudflare Ray ID:", error.headers.get("CF-Ray"))
         return error.code, error.read().decode("utf-8")
 
     except URLError as error:
         raise ConnectionError("Unable to connect to DRES") from error
+

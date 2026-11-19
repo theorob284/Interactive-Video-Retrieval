@@ -3,6 +3,62 @@ import json
 from pathlib import Path
 from retrieval.text_search import TextSearch
 
+def prioritiseTranscriptShots(results, passages_by_video, boost=0.4):
+    ranked_results = []
+
+    for result in results:
+        shot = result.copy()
+
+        shot_id = shot["shotID"]
+        video_id = getVideoID(shot_id)
+
+        # Shot times are stored in seconds; convert to milliseconds.
+        shot_start = round(shot["startTime"] * 1000)
+        shot_end = round(shot["endTime"] * 1000)
+
+        best_match = 0.0
+
+        for passage in passages_by_video.get(video_id, []):
+            for segment in passage.get("matched_segments", []):
+                overlap = max(
+                    0,
+                    min(shot_end, segment["end_ms"])
+                    - max(shot_start, segment["start_ms"]),
+                )
+
+                if overlap <= 0:
+                    continue
+
+                segment_duration = max(
+                    1,
+                    segment["end_ms"] - segment["start_ms"],
+                )
+
+                overlap_fraction = overlap / segment_duration
+
+                match_score = (
+                    overlap_fraction
+                    * passage["relevance"]
+                    * segment["coverage"]
+                )
+
+                best_match = max(best_match, match_score)
+
+        original_score = shot["score"]
+
+        shot["score"] = (
+            original_score * (1 + boost * best_match)
+        )
+
+        shot["transcript_boosted"] = best_match > 0
+
+        ranked_results.append(shot)
+
+    return sorted(
+        ranked_results,
+        key=lambda result: result["score"],
+        reverse=True,
+    )
 
 def load(msb_directory):
     shots = []
@@ -106,9 +162,7 @@ def removeDupes(results):
 
     return uniqueResults
 
-
-def diversify(results, max_per_video=2):
-    video_counts = {}
+def diversify(results, max_per_video=2, prefer_top=False):
     diversified = []
     shotsByVideo = {}
 
@@ -122,18 +176,56 @@ def diversify(results, max_per_video=2):
         if count <= 0:
             continue
 
-        for i in range(count):
-            index = (2 * i + 1) * len(video_shots) // (2 * count)
-            diversified.append(video_shots[index])
+        has_transcript_match = any(
+            shot.get("transcript_boosted", False)
+            for shot in video_shots
+        )
 
-    diversified.sort(key=lambda result: result["score"], reverse=True)
+        if prefer_top and has_transcript_match:
+            matched_shots = [
+                shot for shot in video_shots
+                if shot.get("transcript_boosted", False)
+            ]
+
+            selected = sorted(
+                matched_shots,
+                key=lambda result: result["score"],
+                reverse=True,
+            )[:count]
+
+        else:
+            # Original evenly spaced selection.
+            chronological = sorted(
+                video_shots,
+                key=lambda result: result["startTime"],
+            )
+
+            selected = []
+
+            for i in range(count):
+                index = (
+                    (2 * i + 1) * len(chronological)
+                    // (2 * count)
+                )
+                selected.append(chronological[index])
+
+        diversified.extend(selected)
+
+    diversified.sort(
+        key=lambda result: result["score"],
+        reverse=True,
+    )
 
     return diversified
 
 
 def evaluate(results, relShots, k=10):
     results = removeDupes(results)
-    results = diversify(results, max_per_video=2)
+    results = diversify(
+        results,
+        max_per_video=2,
+        prefer_top=True,
+    )
 
     precision = precision_at_k(results, relShots, k)
     recall = kRecall(results, relShots, k)

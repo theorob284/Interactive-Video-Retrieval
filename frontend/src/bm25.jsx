@@ -10,6 +10,7 @@ function BM25() {
     const [error, setError] = useState('')
     const [selectedVideoId, setSelectedVideoId] = useState(null);
     const [selectedShot, setSelectedShot] = useState(null);
+    const [suggestedShotId, setSuggestedShotId] = useState(null);
     const shotBrowserRef = useRef(null);
     const videoPlayerRef = useRef(null);
 
@@ -41,6 +42,7 @@ function BM25() {
         setResults([])
         setSelectedVideoId(null);
         setSelectedShot(null);
+        setSuggestedShotId(null);
 
         try {
             const response = await fetch(`/api/search/text/?q=${encodeURIComponent(query)}`)
@@ -72,16 +74,22 @@ function BM25() {
             </form>
 
             {error && <p>{error}</p>}
-
+ 
             {selectedVideoId && (
                 <div ref={shotBrowserRef} className="mt-4 shot-browser-section">
 
                     {selectedShot && (
                         <div ref={videoPlayerRef} className="video-player-section">
+                            {selectedShot.shot_id === suggestedShotId && (
+                                <div className="alert alert-success mb-2">
+                                    <strong>Suggested match:</strong>{" "}{selectedShot.shot_id} {" · "} {(selectedShot.start_ms / 1000).toFixed(2)}s{" - "} {(selectedShot.end_ms / 1000).toFixed(2)}s
+                                </div>
+                            )}
+
                             <VideoPlayer videoId={selectedVideoId} shot={selectedShot}/>
                         </div>
                     )}
-                    <ShotBrowser videoId={selectedVideoId} onClose={() => {setSelectedVideoId(null); setSelectedShot(null);}} onSelectShot={setSelectedShot}/>
+                    <ShotBrowser videoId={selectedVideoId} suggestedShotId={suggestedShotId} onClose={() => {setSelectedVideoId(null); setSelectedShot(null); setSuggestedShotId(null);}} onSelectShot={setSelectedShot}/>
 
                 </div>
             )}
@@ -89,7 +97,7 @@ function BM25() {
             <div className="row g-3 mt-2 mb-2">
                 {results.map((video) => (
                     <div className="col-12 col-md-6 col-lg-3" key={video.video_id}>
-                        <VideoCard video={video} onSelect={(videoId) => {setSelectedVideoId(videoId); setSelectedShot(null);}}/>
+                        <VideoCard video={video} onSelect={(videoId) => {setSelectedVideoId(videoId); setSelectedShot(null); setSuggestedShotId(video.suggested_shot_id);}}/>
                     </div>
                 ))}
             </div>

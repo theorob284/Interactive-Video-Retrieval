@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Col, Row, Spinner } from "react-bootstrap";
 import ShotThumbnail from "./ShotThumbnail";
 
-export default function ShotBrowser({ videoId, onClose, onSelectShot }) {
+export default function ShotBrowser({ videoId, suggestedShotId, onClose, onSelectShot }) {
     const [shots, setShots] = useState([]);
     const [title, setTitle] = useState("");
     const [loading, setLoading] = useState(false);
@@ -27,9 +27,19 @@ export default function ShotBrowser({ videoId, onClose, onSelectShot }) {
                 }
 
                 const data = await response.json();
+                const loadedShots = data.shots || [];
 
-                setShots(data.shots || []);
+                setShots(loadedShots);
                 setTitle(data.title || videoId);
+
+                if (suggestedShotId) {
+                    const suggestedShot = loadedShots.find((shot) => shot.shot_id === suggestedShotId);
+
+                    if (suggestedShot && !controller.signal.aborted) {
+                        onSelectShot(suggestedShot);
+                    }
+                }
+
             } catch (err) {
                 if (err.name !== "AbortError") {
                     setError(err.message);
@@ -44,7 +54,7 @@ export default function ShotBrowser({ videoId, onClose, onSelectShot }) {
         loadShots();
 
         return () => controller.abort();
-    }, [videoId]);
+    }, [videoId, suggestedShotId]);
 
     if (!videoId) return null;
 
@@ -63,15 +73,26 @@ export default function ShotBrowser({ videoId, onClose, onSelectShot }) {
             <div className="mt-4">
                 <p>{shots.length} shots</p>
 
-                <Row xs={1} sm={2} md={3} lg={4} className="g-3">
-                    {shots.map((shot) => (
-                    <Col key={shot.shot_id}>
-                        <ShotThumbnail
-                        shot={shot}
-                        onSelect={onSelectShot}
-                        />
-                    </Col>
-                    ))}
+                <Row xs={1} sm={2} md={3} lg={4} className="g-3">             
+                    {shots.map((shot) => {
+                        const isSuggested = shot.shot_id === suggestedShotId;
+
+                        return (
+                            <Col key={shot.shot_id}>
+                                <div className="position-relative h-100">
+                                    {isSuggested && (
+                                        <span className="badge bg-success position-absolute top-0 start-0 m-2" style={{ zIndex: 1 }}>
+                                            Suggested match
+                                        </span>
+                                    )}
+
+                                    <div className={`h-100 rounded ${isSuggested ? "border border-success border-3" : ""}`}>
+                                        <ShotThumbnail shot={shot} onSelect={onSelectShot}/>
+                                    </div>
+                                </div>
+                            </Col>
+                        );
+                    })}
                 </Row>
             </div>
         )}
