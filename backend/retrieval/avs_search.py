@@ -91,7 +91,7 @@ def expandVidResults(vidResults, shots):
     expandedResults = []
 
     for video_result in vidResults:
-        videoID = video_result["video_id"]  # Fixed BM25 key
+        videoID = video_result["video_id"]
         score = video_result["score"]
 
         for shot in shotsByVideo.get(videoID, []):

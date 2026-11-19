@@ -6,7 +6,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 def build_submission(shot):
-    """Build a DRES temporal submission from a Django Shot."""
+    """Build a DRES temporal submission from a Django Shot"""
 
     return {
         "answerSets": [
@@ -23,7 +23,7 @@ def build_submission(shot):
     }
 
 def build_avs_submission(shots):
-    """Build a DRES submission containing multiple temporal answers."""
+    """Build a DRES submission containing multiple answers"""
 
     return {
         "answerSets": [
@@ -39,7 +39,6 @@ def build_avs_submission(shots):
             }
         ]
     }
-
 
 def submit_to_dres(payload, evaluation_id):
     """Send a submission to the selected DRES evaluation."""

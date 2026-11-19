@@ -16,11 +16,7 @@ export default function DresSubmission({ shot }) {
 
     const LIVE_ENABLED = true;
 
-    useEffect(() => {
-        setPreview(null);
-        setSubmission(null);
-        setError("");
-    }, [shot?.shot_id]);
+    useEffect(() => {setPreview(null); setSubmission(null); setError("");}, [shot?.shot_id]);
 
     async function sendRequest(submit) {
         if (!shot) return;
@@ -73,7 +69,6 @@ export default function DresSubmission({ shot }) {
         <Card.Body>
             <Card.Title>DRES Submission</Card.Title>
             <p className="mb-3">Selected shot: <strong>{shot.shot_id}</strong></p>
-
         <Form.Group className="mb-3" controlId="dresEvaluationId">
             <Form.Label>DRES Evaluation ID</Form.Label>
             <Form.Control type="text" placeholder="Enter evaluation/run ID" value={evaluationId} onChange={(e) => {setEvaluationId(e.target.value); setSubmission(null);}} autoComplete="off"/>

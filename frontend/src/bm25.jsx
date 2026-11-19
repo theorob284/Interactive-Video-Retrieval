@@ -16,19 +16,13 @@ function BM25() {
 
     useEffect(() => {
         if (selectedVideoId && shotBrowserRef.current) {
-            shotBrowserRef.current.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-            });
+            shotBrowserRef.current.scrollIntoView({behavior: "smooth", block: "start",});
         }
     }, [selectedVideoId]);
 
     useEffect(() => {
         if (selectedShot && videoPlayerRef.current) {
-            videoPlayerRef.current.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-            });
+            videoPlayerRef.current.scrollIntoView({behavior: "smooth", block: "start",});
         }
     }, [selectedShot]);
 
@@ -62,12 +56,11 @@ function BM25() {
 
     return (
         <div className="container mt-3">
-            <h1>Text Search (KIS-T) - Video Retrieval</h1>
-            <p>Search the V3C video collection using BM25.</p>
+            <h1>Text Search (KIS-T) - Find Videos with Text</h1>
+            <p>Search the V3C video collection using text and visual content.</p>
 
             <form className="d-flex gap-2 search-form" onSubmit={handleSearch}>
                 <input className="form-control mb-2" type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Describe the video you're looking for..."/>
-
                 <button className="btn btn-primary" type="submit" disabled={loading}>
                     {loading ? 'Searching...' : 'Search'}
                 </button>

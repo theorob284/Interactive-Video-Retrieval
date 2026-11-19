@@ -19,38 +19,21 @@ from retrieval.visual_search import search as visual_search
 from retrieval.avs_search import expandVidResults, removeDupes, diversify, prioritiseTranscriptShots
 from retrieval.hybrid_search import HybridSearch
 from retrieval.clip_search import search_shots as clip_search_shots
+from retrieval.kist_search import combine_kist_rankings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 VISUAL_INDEX = PROJECT_ROOT / "indexes" / "phashIndex.json"
-DATA_PATH = (Path(__file__).resolve().parents[2]/ "data"/"assignment2_data"/"videos_metadata.json")
-TEXT_INDEX = PROJECT_ROOT / "indexes" / "text_bm25.pkl"
 METADATA_INDEX = PROJECT_ROOT / "indexes" / "metadata_bm25.pkl"
 TRANSCRIPT_INDEX = PROJECT_ROOT / "indexes" / "transcript_bm25.pkl"
 
-
 @lru_cache(maxsize=1)
 def get_search_engine():
-    """Load and cache the two BM25 indexes."""
+    """Load and cache the metadata and transcript BM25 indexes."""
 
     metadata_engine = TextSearch.load(METADATA_INDEX)
     transcript_engine = TextSearch.load(TRANSCRIPT_INDEX)
 
-    engine = HybridSearch(
-        metadata_engine,
-        transcript_engine,
-        metadata_weight=1.0,
-        transcript_weight=0.5,
-    )
-
-    with DATA_PATH.open(encoding="utf-8") as file:
-        records = json.load(file)
-
-    metadata = {
-        record["v3cId"]: record
-        for record in records
-    }
-
-    return engine, metadata
+    return HybridSearch(metadata_engine, transcript_engine, metadata_weight=1.0,transcript_weight=0.5,)
 
 def get_candidate_passages(query, video_ids):
     """Retrieve and normalise transcript matches for candidate videos."""
@@ -58,11 +41,7 @@ def get_candidate_passages(query, video_ids):
     passages_by_video = {}
 
     for video_id in video_ids:
-        passages = find_relevant_passages(
-            video_id,
-            query,
-            top_k=3,
-        )
+        passages = find_relevant_passages(video_id, query, top_k=3,)
 
         if not passages:
             continue
@@ -72,13 +51,7 @@ def get_candidate_passages(query, video_ids):
         if best_score <= 0:
             continue
 
-        passages_by_video[video_id] = [
-            {
-                **passage,
-                "relevance": passage["score"] / best_score,
-            }
-            for passage in passages
-        ]
+        passages_by_video[video_id] = [{**passage, "relevance": passage["score"] / best_score,}for passage in passages]
 
     return passages_by_video
 
@@ -89,24 +62,29 @@ def text_search(request):
     if not query:
         return JsonResponse({"results": []})
 
-    engine, _ = get_search_engine()
+    engine = get_search_engine()
+    bm25_results = engine.search(query, top_k=20)
 
-    matches = engine.search(query, top_k=20)
+    clip_results = clip_search_shots(query, top_k=1500, max_per_video=None,)
+    combined = combine_kist_rankings(bm25_results, clip_results, top_k=20,)
 
-    video_ids = [match["video_id"] for match in matches]
+    video_ids = [candidate["video_id"] for candidate in combined]
     passages_by_video = get_candidate_passages(query, video_ids)
 
     videos = Video.objects.filter(video_id__in=video_ids)
     video_lookup = {video.video_id: video for video in videos}
 
-    thumbnail_lookup = {
-        video.video_id: (f"/api/shots/shot{video.video_id}_{max(1, (video.shot_count + 1) // 2)}/thumbnail/") for video in videos
-    }
+    # Retrieve candidate shots once for transcript localisation.
+    shots_by_video = {}
+
+    for shot in Shot.objects.filter(video_id__in=video_ids):
+        shots_by_video.setdefault(shot.video_id, []).append(shot)
 
     results = []
 
-    for match in matches:
-        video = video_lookup.get(match["video_id"])
+    for candidate in combined:
+        video_id = candidate["video_id"]
+        video = video_lookup.get(video_id)
 
         if video is None:
             continue
@@ -114,47 +92,42 @@ def text_search(request):
         suggested_shot = None
         best_shot_score = 0.0
 
-        for passage in passages_by_video.get(video.video_id, []):
+        for passage in passages_by_video.get(video_id, []):
             for segment in passage.get("matched_segments", []):
-                overlapping_shots = Shot.objects.filter(
-                    video_id=video.video_id,
-                    start_ms__lt=segment["end_ms"],
-                    end_ms__gt=segment["start_ms"],
-                )
+                segment_duration = max(1, segment["end_ms"] - segment["start_ms"])
 
-                for shot in overlapping_shots:
-                    overlap = max(
-                        0,
-                        min(shot.end_ms, segment["end_ms"])
-                        - max(shot.start_ms, segment["start_ms"]),
-                    )
+                for shot in shots_by_video.get(video_id, []):
+                    overlap = max(0, min(shot.end_ms, segment["end_ms"],) - max(shot.start_ms, segment["start_ms"],),)
 
-                    segment_duration = max(
-                        1,
-                        segment["end_ms"] - segment["start_ms"],
-                    )
+                    if overlap <= 0:
+                        continue
 
-                    shot_score = (
-                        (overlap / segment_duration)
-                        * passage["relevance"]
-                        * segment["coverage"]
-                    )
+                    shot_score = ((overlap / segment_duration) * passage["relevance"] * segment["coverage"])
 
                     if shot_score > best_shot_score:
                         best_shot_score = shot_score
                         suggested_shot = shot
 
+        clip_shot_id = candidate["clip_shot_id"]
+
+        if suggested_shot is not None:
+            suggested_shot_id = suggested_shot.shot_id
+        elif clip_shot_id:
+            suggested_shot_id = clip_shot_id
+        else:
+            suggested_shot_id = None
+
+        middle_shot = max(1, (video.shot_count + 1) // 2)
+
+        thumbnail_shot_id = (suggested_shot_id or f"shot{video_id}_{middle_shot}")
+
         results.append({
             "video_id": video.video_id,
             "title": video.title,
-            "score": match["score"],
+            "score": candidate["score"],
             "shot_count": video.shot_count,
-            "thumbnail_url": (
-                f"/api/shots/{suggested_shot.shot_id}/thumbnail/"
-                if suggested_shot
-                else thumbnail_lookup.get(video.video_id)
-            ),
-            "suggested_shot_id": (suggested_shot.shot_id if suggested_shot else None),
+            "thumbnail_url": (f"/api/shots/{thumbnail_shot_id}/thumbnail/"),
+            "suggested_shot_id": suggested_shot_id,
         })
 
     return JsonResponse({"results": results})
@@ -191,43 +164,22 @@ def visual_search_view(request):
             results = visual_search(imagePath=str(query_path), indexPath=str(VISUAL_INDEX), topK=20)
         except ValueError as error:
             return JsonResponse({"error": str(error)}, status=400)
-
     
     enriched_results = []
     seen_shots = set()
 
     for result in results:
         if "shotID" in result:
-            # Image query: already identifies a specific shot.
-            shot = Shot.objects.filter(
-                shot_id=result["shotID"]
-            ).first()
+            shot = Shot.objects.filter(shot_id=result["shotID"]).first()
 
             candidates = [shot] if shot else []
-
         else:
-            # Video query: retain several shots overlapping
-            # the estimated matching interval.
             video_id = result["videoID"]
             start_ms = round(result["start"] * 1000)
             end_ms = round(result["end"] * 1000)
 
-            candidates = list(
-                Shot.objects.filter(
-                    video_id=video_id,
-                    start_ms__lt=end_ms,
-                    end_ms__gt=start_ms,
-                )
-            )
-
-            candidates.sort(
-                key=lambda shot: (
-                    min(shot.end_ms, end_ms)
-                    - max(shot.start_ms, start_ms)
-                ),
-                reverse=True,
-            )
-
+            candidates = list(Shot.objects.filter(video_id=video_id, start_ms__lt=end_ms, end_ms__gt=start_ms,))
+            candidates.sort(key=lambda shot: (min(shot.end_ms, end_ms) - max(shot.start_ms, start_ms)), reverse=True,)
             candidates = candidates[:5]
 
         for shot in candidates:
@@ -242,13 +194,9 @@ def visual_search_view(request):
                 "video_id": shot.video_id,
                 "start_ms": shot.start_ms,
                 "end_ms": shot.end_ms,
-                "thumbnail_url": (
-                    f"/api/shots/{shot.shot_id}/thumbnail/"
-                ),
+                "thumbnail_url": (f"/api/shots/{shot.shot_id}/thumbnail/"),
             })
-
     return JsonResponse({"results": enriched_results})
-
 
 @require_GET
 def video_shots(request, video_id):
@@ -262,23 +210,16 @@ def video_shots(request, video_id):
             "start_ms": shot.start_ms,
             "end_ms": shot.end_ms,
             "thumbnail_url": f"/api/shots/{shot.shot_id}/thumbnail/",
-        }
-        for shot in shots
+        } for shot in shots
     ]
 
-    return JsonResponse({
-        "video_id": video.video_id,
-        "title": video.title,
-        "shots": results,
-    })
+    return JsonResponse({"video_id": video.video_id, "title": video.title, "shots": results})
 
 @require_GET
 def shot_thumbnail(request, shot_id):
     shot = get_object_or_404(Shot, shot_id=shot_id)
 
-    archive_path = (
-        PROJECT_ROOT / "data" / "assignment2_data" / "thumbnails" / f"{shot.video_id}.zip"
-    )
+    archive_path = (PROJECT_ROOT / "data" / "assignment2_data" / "thumbnails" / f"{shot.video_id}.zip")
 
     if not archive_path.is_file():
         raise Http404("Thumbnail archive not found")
@@ -312,7 +253,6 @@ def video_file(request, video_id):
     file_size = path.stat().st_size
     range_header = request.headers.get("Range")
 
-    # Normal request: serve the complete video.
     if not range_header:
         response = FileResponse(path.open("rb"), content_type="video/mp4")
         response["Accept-Ranges"] = "bytes"
@@ -390,27 +330,18 @@ def submit_shot(request):
 
     payload = build_submission(shot)
 
-    # Preview only - no request sent to DRES.
+    # Preview
     if data.get("submit") is not True:
-        return JsonResponse({
-            "mode": "preview",
-            "payload": payload,
-        })
+        return JsonResponse({"mode": "preview", "payload": payload,})
 
-    # Protect against accidental live submissions.
+    # Protect against accidental live submissions
     if os.getenv("DRES_ENABLE_LIVE", "false").lower() != "true":
         return JsonResponse({"error": "Live DRES submission is disabled"}, status=403)
 
     if not isinstance(evaluation_id, str) or not evaluation_id.strip():
-        return JsonResponse(
-            {"error": "A DRES evaluation ID is required"},
-            status=400,
-        )
+        return JsonResponse({"error": "A DRES evaluation ID is required"},status=400,)
 
-    required = (
-        "DRES_BASE_URL",
-        "DRES_SESSION_TOKEN",
-    )
+    required = ("DRES_BASE_URL", "DRES_SESSION_TOKEN",)
 
     if any(not os.getenv(name) for name in required):
         return JsonResponse({"error": "DRES configuration is incomplete"}, status=503)
@@ -425,13 +356,7 @@ def submit_shot(request):
     except ValueError:
         dres_response = {"message": body[:1000]}
 
-    return JsonResponse({
-        "mode": "live",
-        "accepted": status in (200, 202),
-        "dres_status": status,
-        "response": dres_response,
-    })
-
+    return JsonResponse({"mode": "live", "accepted": status in (200, 202), "dres_status": status, "response": dres_response,})
 
 @require_POST
 def submit_avs(request):
@@ -462,10 +387,7 @@ def submit_avs(request):
 
     # Preview without submitting to DRES.
     if data.get("submit") is not True:
-        return JsonResponse({
-            "mode": "preview",
-            "payload": payload,
-        })
+        return JsonResponse({"mode": "preview", "payload": payload,})
 
     if os.getenv("DRES_ENABLE_LIVE", "false").lower() != "true":
         return JsonResponse({"error": "Live DRES submission is disabled"}, status=403)
@@ -476,31 +398,34 @@ def submit_avs(request):
             status=400,
         )
 
-    required = (
-        "DRES_BASE_URL",
-        "DRES_EVALUATION_ID",
-        "DRES_SESSION_TOKEN",
-    )
+    required = ("DRES_BASE_URL", "DRES_SESSION_TOKEN",)
 
     if any(not os.getenv(name) for name in required):
         return JsonResponse({"error": "DRES configuration is incomplete"}, status=503)
 
-    try:
-        status, body = submit_to_dres(payload, evaluation_id)
-    except (ConnectionError, TimeoutError):
-        return JsonResponse({"error": "Unable to reach DRES"}, status=502)
+    submission_results = []
 
-    try:
-        dres_response = json.loads(body)
-    except ValueError:
-        dres_response = {"message": body[:1000]}
+    for shot in shots:
+        individual_payload = build_submission(shot)
 
-    return JsonResponse({
-        "mode": "live",
-        "accepted": status in (200, 202),
-        "dres_status": status,
-        "response": dres_response,
-    })
+        try:
+            status, body = submit_to_dres(individual_payload, evaluation_id,)
+        except (ConnectionError, TimeoutError) as error:
+            submission_results.append({"shot_id": shot.shot_id, "accepted": False, "error": str(error)})
+            break
+
+        try:
+            dres_response = json.loads(body)
+        except ValueError:
+            dres_response = {"message": body[:1000]}
+
+        accepted = status in (200, 202)
+
+        submission_results.append({"shot_id": shot.shot_id, "accepted": accepted, "dres_status": status, "response": dres_response,})
+
+    accepted_count = sum(result["accepted"] for result in submission_results)
+
+    return JsonResponse({"mode": "live", "accepted": accepted_count == len(shots), "submitted_count": accepted_count, "requested_count": len(shots), "results": submission_results,})
 
 @require_GET
 def avs_search(request):
@@ -512,32 +437,17 @@ def avs_search(request):
     search_engine = request.GET.get("engine", "clip")
 
     if search_engine not in {"clip", "bm25"}:
-        return JsonResponse(
-            {"error": "Unknown AVS search engine"},
-            status=400,
-        )
+        return JsonResponse({"error": "Unknown AVS search engine"}, status=400,)
 
     if search_engine == "clip":
         try:
-            matches = clip_search_shots(
-                query,
-                top_k=60,
-                max_per_video=3,
-            )
+            matches = clip_search_shots(query, top_k=200, max_per_video=3,)
         except (FileNotFoundError, ValueError) as error:
-            return JsonResponse(
-                {"error": str(error)},
-                status=503,
-            )
+            return JsonResponse({"error": str(error)}, status=503,)
 
-        # Retrieve authoritative shot boundaries from Django.
+        # Retrieve authoritative shot boundaries from Django
         shot_lookup = {
-            shot.shot_id: shot
-            for shot in Shot.objects.filter(
-                shot_id__in=[
-                    match["shot_id"] for match in matches
-                ]
-            )
+            shot.shot_id: shot for shot in Shot.objects.filter(shot_id__in=[match["shot_id"] for match in matches])
         }
 
         formatted = []
@@ -554,26 +464,20 @@ def avs_search(request):
                 "start_ms": shot.start_ms,
                 "end_ms": shot.end_ms,
                 "score": match["score"],
-                "thumbnail_url": (
-                    f"/api/shots/{shot.shot_id}/thumbnail/"
-                ),
+                "thumbnail_url": (f"/api/shots/{shot.shot_id}/thumbnail/")
             })
 
         return JsonResponse({"results": formatted})
 
     # Reuse existing BM25
-    engine, _ = get_search_engine()
+    engine = get_search_engine()
     vidResults = engine.search(query, top_k=20)
 
     video_ids = [result["video_id"] for result in vidResults]
 
-    # Retrieve shot boundaries from Django instead of TSV files
+    # Retrieve shot boundaries from Django instead of TSV
     shots = [
-        {
-            "shotID": shot.shot_id,
-            "startTime": shot.start_ms / 1000,
-            "endTime": shot.end_ms / 1000,
-        } for shot in Shot.objects.filter(video_id__in=video_ids).order_by("video_id", "shot_number")
+        {"shotID": shot.shot_id, "startTime": shot.start_ms / 1000, "endTime": shot.end_ms / 1000, } for shot in Shot.objects.filter(video_id__in=video_ids).order_by("video_id", "shot_number")
     ]
 
     passages_by_video = get_candidate_passages(query, video_ids)
@@ -581,17 +485,9 @@ def avs_search(request):
     results = expandVidResults(vidResults, shots)
     results = removeDupes(results)
 
-    results = prioritiseTranscriptShots(
-        results,
-        passages_by_video,
-        boost=0.4,
-    )
+    results = prioritiseTranscriptShots(results, passages_by_video, boost=0.4,)
 
-    results = diversify(
-        results,
-        max_per_video=8,
-        prefer_top=True,
-    )
+    results = diversify(results, max_per_video=8, prefer_top=True,)
 
     # Convert results into the format React already uses
     formatted = [

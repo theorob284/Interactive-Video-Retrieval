@@ -51,9 +51,7 @@ export default function VisualSearch() {
 
         try {
             // Get the CSRF cookie first
-            await fetch("/api/csrf/", {
-                credentials: "same-origin",
-            });
+            await fetch("/api/csrf/", {credentials: "same-origin",});
 
             // Submit the image or video
             const response = await fetch("/api/search/visual/", {
@@ -76,7 +74,6 @@ export default function VisualSearch() {
             setLoading(false);
         }
     }
-
 
     return (
         <Container className="mt-3">
@@ -112,18 +109,9 @@ export default function VisualSearch() {
                         <Col key={result.shotID}>
                             <div className="h-100">
                                 <ShotThumbnail
-                                    shot={{
-                                        shot_id: result.shotID,
-                                        start_ms: result.start_ms,
-                                        end_ms: result.end_ms,
-                                        thumbnail_url: result.thumbnail_url,
-                                    }}
+                                    shot={{shot_id: result.shotID, start_ms: result.start_ms, end_ms: result.end_ms, thumbnail_url: result.thumbnail_url,}}
                                     rank={index + 1}
-                                    scoreLabel={
-                                    result.distance != null
-                                        ? `Distance: ${result.distance}`
-                                        : `Score: ${result.score?.toFixed(2) ?? "—"}`
-                                    }
+                                    scoreLabel={result.distance != null ? `Distance: ${result.distance}` : `Score: ${result.score?.toFixed(2) ?? "—"}`} 
                                     onSelect={() => setSelectedShot(result)}
                                 />
                             </div>
@@ -132,7 +120,6 @@ export default function VisualSearch() {
                 </Row>
             </div>
         )}
-
 
         {!loading && !error && results.length === 0 && ( <p className="mt-3 text-muted"> Upload a file to see visual search results.</p>)}
         </Container>

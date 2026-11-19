@@ -6,7 +6,6 @@ from pathlib import Path
 METADATA_PATH = Path("data/assignment2_data/videos_metadata.json")
 TRANSCRIPT_DIR = Path("data/assignment2_data/transcripts")
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--delete", action="store_true", help="Delete transcripts that do not match dataset video IDs.",)
@@ -25,17 +24,10 @@ def main():
     matched_ids = {path.stem for path in matching}
     missing_ids = video_ids - matched_ids
 
-    total_size = sum(path.stat().st_size for path in transcript_files)
-    unnecessary_size = sum(path.stat().st_size for path in unnecessary)
-
     print(f"Videos in dataset: {len(video_ids)}")
     print(f"Total transcript files: {len(transcript_files)}")
     print(f"Matching transcript files: {len(matching)}")
     print(f"Unnecessary transcript files: {len(unnecessary)}")
-    print(f"Videos with transcripts: {len(matched_ids)}")
-    print(f"Videos without transcripts: {len(missing_ids)}")
-    print(f"Total transcript size: {total_size / 1024**2:.2f} MB")
-    print(f"Space recoverable: {unnecessary_size / 1024**2:.2f} MB")
 
     if missing_ids:
         print(f"Example missing IDs: {sorted(missing_ids)[:10]}")

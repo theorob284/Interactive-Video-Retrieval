@@ -17,9 +17,7 @@ TRANSCRIPT_INDEX = ROOT / "indexes/transcript_bm25.pkl"
 
 def main():
     print("Loading metadata...")
-    records = json.loads(
-        METADATA_PATH.read_text(encoding="utf-8")
-    )
+    records = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
 
     print("Loading transcripts...")
     transcripts = load_transcripts(TRANSCRIPT_DIR)
@@ -31,18 +29,11 @@ def main():
     print(f"Matching transcripts: {len(matched)}")
 
     print("\nBuilding metadata BM25...")
-    metadata_engine = TextSearch(
-        records,
-        source="metadata",
-    )
+    metadata_engine = TextSearch(records, source="metadata",)
     metadata_engine.save(METADATA_INDEX)
 
     print("Building transcript BM25...")
-    transcript_engine = TextSearch(
-        records,
-        transcripts=transcripts,
-        source="transcript",
-    )
+    transcript_engine = TextSearch(records, transcripts=transcripts, source="transcript",)
     transcript_engine.save(TRANSCRIPT_INDEX)
 
     print("\nIndexes saved:")
@@ -51,11 +42,6 @@ def main():
 
     print(f"Metadata documents: {len(metadata_engine.video_ids)}")
     print(f"Transcript documents: {len(transcript_engine.video_ids)}")
-
-
-if __name__ == "__main__":
-    main()
-
 
 if __name__ == "__main__":
     main()

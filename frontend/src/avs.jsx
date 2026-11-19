@@ -12,6 +12,7 @@ export default function AVS() {
 
     const [selectedShot, setSelectedShot] = useState(null);
     const [selectedShots, setSelectedShots] = useState([]);
+    const videoPlayerRef = useRef(null);
 
     const [preview, setPreview] = useState(null);
     const [submission, setSubmission] = useState(null);
@@ -19,15 +20,9 @@ export default function AVS() {
     const [submissionError, setSubmissionError] = useState("");
     const [evaluationId, setEvaluationId] = useState("");
 
-
-    const videoPlayerRef = useRef(null);
-
     useEffect(() => {
         if (selectedShot && videoPlayerRef.current) {
-            videoPlayerRef.current.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-            });
+            videoPlayerRef.current.scrollIntoView({behavior: "smooth", block: "start",});
         }
     }, [selectedShot]);
 
@@ -74,10 +69,7 @@ export default function AVS() {
     function toggleShot(shot) {
         setSelectedShots((current) => {
             const exists = current.some((item) => item.shot_id === shot.shot_id);
-
-            return exists
-                ? current.filter((item) => item.shot_id !== shot.shot_id)
-                : [...current, shot];
+            return exists ? current.filter((item) => item.shot_id !== shot.shot_id) : [...current, shot];
         });
 
         setPreview(null);
@@ -86,17 +78,11 @@ export default function AVS() {
     }
 
     function isShotSelected(shot) {
-        return selectedShots.some(
-            (item) => item.shot_id === shot.shot_id
-        );
+        return selectedShots.some((item) => item.shot_id === shot.shot_id);
     }
 
     async function handleSubmission(submit = false) {
         if (selectedShots.length === 0) return;
-
-        if (submit && !window.confirm("Submit selected shots to DRES?")) {
-            return;
-        }
 
         setSubmitting(true);
         setSubmissionError("");
@@ -107,10 +93,7 @@ export default function AVS() {
             const response = await fetch("/api/submit/avs/", {
                 method: "POST",
                 credentials: "same-origin",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": getCookie("csrftoken"),
-                },
+                headers: {"Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken"),},
                 body: JSON.stringify({shot_ids: selectedShots.map((shot) => shot.shot_id), submit, evaluation_id: evaluationId.trim(),}),
             });
 
@@ -141,7 +124,6 @@ export default function AVS() {
 
             <Form className="d-flex gap-2 search-form" onSubmit={handleSearch}>
                 <Form.Control type="text" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Describe the videos you're looking for..."/>
-
                 <Button type="submit" disabled={loading}>
                     {loading ? "Searching..." : "Search"}
                 </Button>
@@ -223,9 +205,6 @@ export default function AVS() {
                             <Alert
                                 variant={ submission.accepted ? "success" : "warning"} dismissible className="mt-3" onClose={() => setSubmission(null)}>
                                 <strong>{submission.accepted ? "DRES submission accepted.": "DRES submission not accepted."}</strong>
-                                <p className="mb-2">
-                                    HTTP status: {submission.dres_status}
-                                </p>
 
                                 <pre className="mb-0" style={{ whiteSpace: "pre-wrap" }}>
                                     {JSON.stringify(submission.response, null, 2)}

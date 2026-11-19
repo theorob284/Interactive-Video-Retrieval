@@ -16,7 +16,7 @@ export default function VideoCard({ video, onSelect }) {
         </Card.Text>
 
         <div className="d-flex justify-content-between small mb-3">
-          <span>BM25: {video.score.toFixed(2)}</span>
+          <span>Relevance Score: {video.score.toFixed(2)}</span>
           <span>{video.shot_count} shots</span>
         </div>
 
