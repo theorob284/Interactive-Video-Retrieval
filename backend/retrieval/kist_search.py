@@ -1,4 +1,4 @@
-def combine_kist_rankings(bm25_results, clip_results, top_k=20, bm25_weight=0.95, clip_weight=1.0, rrf_k=60,):
+def combine_kist_rankings(bm25_results, clip_results, top_k=20, bm25_weight=0.90, clip_weight=1.1, rrf_k=60,):
     combined = {}
 
     # First route: existing BM25 video ranking.
