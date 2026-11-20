@@ -10,9 +10,8 @@ from video_retrieval.models import Shot
 from video_retrieval.views import get_search_engine
 from retrieval.avs_search import (expandVidResults, removeDupes, diversify, video_diversity_at_k)
 
-
 def main():
-    engine, _ = get_search_engine()
+    engine = get_search_engine()
 
     print("AVS Search")
     print("Enter a query, or type 'exit' to quit.")
@@ -46,7 +45,6 @@ def main():
 
         # Use your partner's AVS functions
         results = expandVidResults(vidResults, shots)
-
         results = removeDupes(results)
         results = diversify(results, max_per_video=2)
 
@@ -57,13 +55,7 @@ def main():
         print("\nTop AVS Results:")
 
         for rank, result in enumerate(results[:10], start=1):
-            print(
-                f"{rank:2}. "
-                f"{result['shotID']} | "
-                f"Score: {result['score']:.2f} | "
-                f"{result['startTime']:.2f}s - "
-                f"{result['endTime']:.2f}s"
-            )
+            print(f"{rank:2}: {result['shotID']} | Score: {result['score']:.2f} | {result['startTime']:.2f}s - {result['endTime']:.2f}s")
 
         diversity = video_diversity_at_k(results, k=10)
 

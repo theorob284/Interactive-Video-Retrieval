@@ -31,23 +31,17 @@ def loadShotTimes(msbDirectory):
         with open(filePath, "r", encoding="utf-8") as file:
             reader = csv.DictReader(file, delimiter="\t")
             for shotNumber, row in enumerate(reader, start=1):
-                times[f"shot{videoID}_{shotNumber}"] = (
-                    float(row["starttime"]),
-                    float(row["endtime"]),
-                )
+                times[f"shot{videoID}_{shotNumber}"] = (float(row["starttime"]), float(row["endtime"]),)
     return times
 
 _POPCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.uint8)
 
-
 def hammingRow(queryHash, dataHashes):
     x = dataHashes ^ np.uint64(queryHash)
-
     if hasattr(np, "bitwise_count"):
         return np.bitwise_count(x).astype(np.int16)
 
     return _POPCOUNT[x.view(np.uint8).reshape(-1, 8)].sum(axis=1, dtype=np.int16)
-
 
 @lru_cache(maxsize=2)
 def loadIndex(indexPath):
@@ -61,13 +55,7 @@ def loadIndex(indexPath):
         "end": np.array([item.get("end", np.nan) for item in index], dtype=float),
     }
 
-
-def buildIndex(
-    thumbnailDirectory: str,
-    indexPath: str = DEFAULT_INDEX,
-    msbDirectory: str = None,
-    minStd: float = 12
-):
+def buildIndex(thumbnailDirectory: str, indexPath: str = DEFAULT_INDEX, msbDirectory: str = None, minStd: float = 12):
     thumbnailDirectory = Path(thumbnailDirectory)
     indexPath = Path(indexPath)
 
@@ -102,12 +90,7 @@ def buildIndex(
                             hash1 = str(imagehash.phash(rgb))
                             flat = isFlat(rgb, minStd)
 
-                        item = {
-                            "shotID": shotID,
-                            "hash": hash1,
-                            "videoID": getVideoID(shotID),
-                            "flat": flat,
-                        }
+                        item = {"shotID": shotID, "hash": hash1, "videoID": getVideoID(shotID), "flat": flat,}
 
                         if shotTimes is not None:
                             if shotID not in shotTimes:
@@ -128,10 +111,7 @@ def buildIndex(
 
     indexPath.parent.mkdir(parents=True, exist_ok=True)
 
-    indexPath.write_text(
-        json.dumps(index, indent=2),
-        encoding="utf-8"
-    )
+    indexPath.write_text(json.dumps(index, indent=2), encoding="utf-8")
 
     loadIndex.cache_clear()
 
@@ -140,8 +120,6 @@ def buildIndex(
     print(f"Duplicates skipped: {dupeCount}")
     print(f"Shots without timestamps: {untimedCount}")
     print(f"Index saved to {indexPath}")
-
-
 
 def extractFrames(videoPath: str, frameNo: int = 12, minStd: float = 12):
     video = cv2.VideoCapture(str(videoPath))
@@ -156,10 +134,7 @@ def extractFrames(videoPath: str, frameNo: int = 12, minStd: float = 12):
         if totalFrames <= 0:
             return frames, 0.0
 
-        frameIndex = sorted(set(
-            int((i + 0.5) * totalFrames / frameNo)
-            for i in range (frameNo)
-        ))
+        frameIndex = sorted(set(int((i + 0.5) * totalFrames / frameNo) for i in range (frameNo)))
 
         for frameInd in frameIndex:
             video.set(cv2.CAP_PROP_POS_FRAMES, frameInd)
@@ -185,7 +160,6 @@ def loadQueryFrames(queryPath: str, frameNo: int = 12):
 
     return extractFrames(str(queryPath), frameNo)
 
-
 def rankShots(dist, shotIDs, topK, matchThreshold):
     best = dist.min(axis=0)
     matched = (dist <= matchThreshold).sum(axis=0)
@@ -197,21 +171,15 @@ def rankShots(dist, shotIDs, topK, matchThreshold):
             "shotID": shotIDs[i],
             "distance": round(float(best[i]), 2),
             "matchedFrames": int(matched[i]),
-        }
-        for i in order
+        } for i in order
     ]
 
-
-def rankSegments(dist, queryFrames, duration, data, topK,
-                 matchThreshold, binSeconds, candidatesPerFrame):
+def rankSegments(dist, queryFrames, duration, data, topK, matchThreshold, binSeconds, candidatesPerFrame):
     start, end, videoIDs = data["start"], data["end"], data["videoIDs"]
 
     timed = ~np.isnan(start)
     if not timed.any():
-        raise ValueError(
-            "This index has no shot timing. Rebuild it with "
-            "buildIndex(thumbnailDirectory, msbDirectory=...)."
-        )
+        raise ValueError("This index has no shot timing. Rebuild it with buildIndex(thumbnailDirectory, msbDirectory=...).")
     dist[:, ~timed] = HASH_BITS + 1
 
     votes = defaultdict(lambda: [0.0, 0])
@@ -264,17 +232,7 @@ def rankSegments(dist, queryFrames, duration, data, topK,
     results.sort(key=lambda result: (-result["score"], result["videoID"]))
     return results[:topK]
 
-
-def search(
-    videoPath: str = None,
-    topK: int = 10,
-    indexPath: str = DEFAULT_INDEX,
-    frameNo: int = 12,
-    matchThreshold: int = 10,
-    imagePath: str = None,
-    binSeconds: float = 4.0,
-    candidatesPerFrame: int = 50
-):
+def search(videoPath: str = None, topK: int = 10, indexPath: str = DEFAULT_INDEX, frameNo: int = 12, matchThreshold: int = 10, imagePath: str = None, binSeconds: float = 4.0, candidatesPerFrame: int = 50):
     queryPath = videoPath or imagePath
     if queryPath is None:
         raise ValueError("Provide videoPath or imagePath")
@@ -290,15 +248,11 @@ def search(
     if not len(data["hashes"]):
         return []
 
-    queryHashes = [
-        int(str(imagehash.phash(frame.convert("RGB"))), 16)
-        for _, frame in queryFrames
-    ]
+    queryHashes = [int(str(imagehash.phash(frame.convert("RGB"))), 16) for _, frame in queryFrames]
 
     dist = np.stack([hammingRow(q, data["hashes"]) for q in queryHashes])
 
     if Path(queryPath).suffix.lower() in formats:
         return rankShots(dist, data["shotIDs"], topK, matchThreshold)
 
-    return rankSegments(dist, queryFrames, duration, data, topK,
-                        matchThreshold, binSeconds, candidatesPerFrame)
+    return rankSegments(dist, queryFrames, duration, data, topK, matchThreshold, binSeconds, candidatesPerFrame)
