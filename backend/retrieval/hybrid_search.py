@@ -1,7 +1,7 @@
 class HybridSearch:
     """Combine metadata and transcript BM25 rankings."""
 
-    def __init__(self, metadata_engine, transcript_engine, metadata_weight=1.0, transcript_weight=0.5, rrf_k=60,):
+    def __init__(self, metadata_engine, transcript_engine, metadata_weight=1.0, transcript_weight=0.6, rrf_k=60,):
         self.metadata_engine = metadata_engine
         self.transcript_engine = transcript_engine
 

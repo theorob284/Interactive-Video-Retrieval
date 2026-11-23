@@ -66,7 +66,7 @@ def text_search(request):
     bm25_results = engine.search(query, top_k=20)
 
     clip_results = clip_search_shots(query, top_k=1500, max_per_video=None,)
-    combined = combine_kist_rankings(bm25_results, clip_results, top_k=20,)
+    combined = combine_kist_rankings(bm25_results, clip_results, top_k=30,)
 
     video_ids = [candidate["video_id"] for candidate in combined]
     passages_by_video = get_candidate_passages(query, video_ids)
