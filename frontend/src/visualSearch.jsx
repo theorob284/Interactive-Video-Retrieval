@@ -54,12 +54,7 @@ export default function VisualSearch() {
             await fetch("/api/csrf/", {credentials: "same-origin",});
 
             // Submit the image or video
-            const response = await fetch("/api/search/visual/", {
-                method: "POST",
-                credentials: "same-origin",
-                headers: {"X-CSRFToken": getCookie("csrftoken"),},
-                body: formData,
-            });
+            const response = await fetch("/api/search/visual/", {method: "POST",credentials: "same-origin",headers: {"X-CSRFToken": getCookie("csrftoken"),},body: formData,});
 
             const data = await response.json();
 
@@ -110,9 +105,7 @@ export default function VisualSearch() {
                             <div className="h-100">
                                 <ShotThumbnail
                                     shot={{shot_id: result.shotID, start_ms: result.start_ms, end_ms: result.end_ms, thumbnail_url: result.thumbnail_url,}}
-                                    rank={index + 1}
-                                    scoreLabel={result.distance != null ? `Distance: ${result.distance}` : `Score: ${result.score?.toFixed(2) ?? "—"}`} 
-                                    onSelect={() => setSelectedShot(result)}
+                                    rank={index + 1} scoreLabel={result.distance != null ? `Distance: ${result.distance}` : `Score: ${result.score?.toFixed(2) ?? "—"}`} onSelect={() => setSelectedShot(result)}
                                 />
                             </div>
                         </Col>

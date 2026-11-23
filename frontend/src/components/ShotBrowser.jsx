@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Alert, Button, Col, Row, Spinner } from "react-bootstrap";
 import ShotThumbnail from "./ShotThumbnail";
